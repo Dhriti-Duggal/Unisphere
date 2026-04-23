@@ -99,15 +99,17 @@ export function Login() {
         email: data.user.email || '',
         phone: '',
         bio: 'Profile description',
-        department: 'Computer Science',
+        department: 'Computer Science & Engineering',
+        departmentId: 'cse',
         location: '',
         studentId: selectedRole === 'student' ? 'STU-2024-001' : '',
         major: selectedRole === 'student' ? 'Computer Science' : '',
-        year: selectedRole === 'student' ? 'Junior' : '',
+        year: selectedRole === 'student' ? '3rd Year' : '',
         gpa: selectedRole === 'student' ? '3.5' : '',
         enrollmentDate: selectedRole === 'student' ? 'September 2022' : '',
         role: selectedRole,
         avatarColor: selectedRoleData.color,
+        onboardingComplete: selectedRole !== 'student',
       });
 
       navigate(selectedRoleData.path);

@@ -6,6 +6,7 @@ export interface UserProfile {
   phone: string;
   bio: string;
   department: string;
+  departmentId: string;
   location: string;
   studentId: string;
   major: string;
@@ -15,6 +16,7 @@ export interface UserProfile {
   role: 'student' | 'teacher' | 'admin';
   avatarColor: string;
   avatarUrl?: string;
+  onboardingComplete: boolean;
 }
  
 interface UserContextType {
@@ -29,7 +31,8 @@ const defaultUser: UserProfile = {
   email: 'john@example.com',
   phone: '+1 234 567 890',
   bio: 'Computer Science student passionate about decentralized systems.',
-  department: 'Computer Science',
+  department: 'Computer Science & Engineering',
+  departmentId: 'cse',
   location: 'New York, USA',
   studentId: 'STU-2024-001',
   major: 'Software Engineering',
@@ -38,6 +41,7 @@ const defaultUser: UserProfile = {
   enrollmentDate: 'Sept 2021',
   role: 'student',
   avatarColor: 'from-primary to-accent',
+  onboardingComplete: false,
 };
  
 const UserContext = createContext<UserContextType | undefined>(undefined);

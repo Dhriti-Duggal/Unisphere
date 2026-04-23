@@ -7,6 +7,7 @@ import { ProtectedRoute } from "./components/common/ProtectedRoute";
 const Welcome = lazy(() => import("./pages/Welcome").then(m => ({ default: m.Welcome })));
 const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
 const Signup = lazy(() => import("./pages/Signup").then(m => ({ default: m.Signup })));
+const Onboarding = lazy(() => import("./pages/Onboarding").then(m => ({ default: m.Onboarding })));
 const StudentDashboard = lazy(() => import("./pages/StudentDashboard").then(m => ({ default: m.StudentDashboard })));
 const TeacherDashboard = lazy(() => import("./pages/TeacherDashboard").then(m => ({ default: m.TeacherDashboard })));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard").then(m => ({ default: m.AdminDashboard })));
@@ -57,6 +58,14 @@ export const router = createBrowserRouter([
     element: (
       <Suspense fallback={<Loading />}>
         <Signup />
+      </Suspense>
+    ),
+  },
+  {
+    path: "/onboarding",
+    element: (
+      <Suspense fallback={<Loading />}>
+        <Onboarding />
       </Suspense>
     ),
   },

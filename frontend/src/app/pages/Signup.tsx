@@ -88,19 +88,25 @@ export function Signup() {
         name: data.user?.name || trimmedName,
         email: data.user?.email || trimmedEmail,
         phone: '',
-        bio: 'Profile description',
-        department: 'Computer Science',
+        bio: '',
+        department: '',
+        departmentId: '',
         location: '',
-        studentId: selectedRole === 'student' ? 'STU-2024-001' : '',
-        major: selectedRole === 'student' ? 'Computer Science' : '',
-        year: selectedRole === 'student' ? 'Junior' : '',
-        gpa: selectedRole === 'student' ? '3.5' : '',
-        enrollmentDate: selectedRole === 'student' ? 'September 2022' : '',
+        studentId: '',
+        major: '',
+        year: '',
+        gpa: '',
+        enrollmentDate: '',
         role: selectedRole,
         avatarColor: ROLES.find(r => r.id === selectedRole)?.color || 'from-primary to-accent',
+        onboardingComplete: false,
       });
 
-      navigate('/login');
+      if (selectedRole === 'student') {
+        navigate('/onboarding');
+      } else {
+        navigate('/login');
+      }
     } catch (error) {
       setErrorMessage('Server error. Please check backend connection.');
     } finally {
