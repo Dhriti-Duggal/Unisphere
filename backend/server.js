@@ -12,7 +12,21 @@ connectDB();
 
 const app = express();
 
-app.use(cors());
+// ── CORS ──────────────────────────────────────────────────────────────────────
+// Explicitly allow all origins, the Authorization header, and PATCH requests
+// so the browser preflight (OPTIONS) succeeds instead of returning 403.
+const corsOptions = {
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: false,
+};
+
+// Handle OPTIONS preflight for every route BEFORE route handlers
+// Express 5 requires a regex for wildcard — string "*" causes a PathError
+app.options(/.*/, cors(corsOptions));
+app.use(cors(corsOptions));
+
 app.use(express.json());
 
 app.use("/api/auth", authRoutes);
