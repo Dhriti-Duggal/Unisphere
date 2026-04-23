@@ -102,7 +102,7 @@ export function Signup() {
         onboardingComplete: false,
       });
 
-      if (selectedRole === 'student') {
+      if (selectedRole === 'student' || selectedRole === 'teacher') {
         navigate('/onboarding');
       } else {
         navigate('/login');
