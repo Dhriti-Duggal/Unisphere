@@ -7,4 +7,9 @@ export const API = {
   profile: `${BASE_URL}/users/profile`,
   users:   `${BASE_URL}/users`,
   userStatus: (id: string) => `${BASE_URL}/users/${id}/status`,
+  courses: `${BASE_URL}/courses`,
+  teacherCourses: `${BASE_URL}/courses/teacher`,
+  courseDetails: (id: string) => `${BASE_URL}/courses/${id}`,
+  assignments: `${BASE_URL}/assignments`,
+  courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`
 };

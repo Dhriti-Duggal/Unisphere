@@ -10,7 +10,9 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell
 } from 'recharts';
-import { getCoursesByDepartment, getDepartmentById, getAssignmentsByDepartment } from '../data/departments';
+import { useState, useEffect } from 'react';
+import { getDepartmentById, getAssignmentsByDepartment } from '../data/departments';
+import { API } from '../../api/api';
 
 const ANALYTICS_DATA = [
   { name: 'Mon', submissions: 45, engagement: 85 },
@@ -37,11 +39,43 @@ export function TeacherDashboard() {
   const { user } = useUser();
   const firstName = user?.name?.split(' ')[0] || 'Teacher';
 
+  const [myCourses, setMyCourses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(API.teacherCourses, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Transform backend data to expected format if needed
+          const formatted = data.map((c: any) => ({
+            id: c._id,
+            title: c.title,
+            code: c.code,
+            credits: 3, // mock
+            students: c.students?.length || 0,
+            progress: c.progress || Math.floor(Math.random() * 40) + 10,
+            color: c.color || 'from-indigo-600 to-purple-600'
+          }));
+          setMyCourses(formatted);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchCourses();
+  }, []);
+
   const deptId = user.departmentId || 'cse';
   const dept = getDepartmentById(deptId);
 
-  // Only courses from teacher's department
-  const myCourses = getCoursesByDepartment(deptId);
+  // Still use mock assignments for now until we fully integrate everything
   const myAssignments = getAssignmentsByDepartment(deptId);
   const pendingSubmissions = myAssignments.filter(a => a.status === 'submitted').length + 4;
 

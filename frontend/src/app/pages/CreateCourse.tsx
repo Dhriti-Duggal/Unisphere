@@ -8,6 +8,8 @@ import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 
+import { API } from '../../api/api';
+
 export function CreateCourse() {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -17,15 +19,40 @@ export function CreateCourse() {
     description: '',
     semester: 'Spring 2026',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || !formData.code || !formData.description) {
       toast.error('Protocol incomplete. Please populate all required parameters.');
       return;
     }
-    toast.success('Academic module initialized and deployed to registry.');
-    navigate('/teacher/dashboard');
+
+    try {
+      setIsSubmitting(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.courses, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (res.ok) {
+        toast.success('Academic module initialized and deployed to registry.');
+        navigate('/teacher/dashboard');
+      } else {
+        const errData = await res.json();
+        toast.error(errData.message || 'Failed to initialize module.');
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Network error. Failed to initialize module.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -53,9 +80,10 @@ export function CreateCourse() {
               </button>
               <button 
                 onClick={handleSubmit}
-                className="h-12 px-8 rounded-2xl bg-primary text-white text-xs font-black uppercase tracking-widest hover:shadow-xl hover:shadow-primary/20 transition-all active:scale-95 shadow-lg"
+                disabled={isSubmitting}
+                className="h-12 px-8 rounded-2xl bg-primary text-white text-xs font-black uppercase tracking-widest hover:shadow-xl hover:shadow-primary/20 transition-all active:scale-95 shadow-lg disabled:opacity-50"
               >
-                  Deploy Module
+                  {isSubmitting ? 'Deploying...' : 'Deploy Module'}
               </button>
           </div>
       </div>

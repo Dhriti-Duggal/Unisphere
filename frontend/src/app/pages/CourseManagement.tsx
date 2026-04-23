@@ -8,6 +8,7 @@ import {
 import { useParams, Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { API } from '../../api/api';
 
 interface Resource {
   id: string;
@@ -37,24 +38,82 @@ export function CourseManagement() {
     { id: '3', type: 'note', title: 'Lecture 1: Computational Logic', date: '2026-04-12' },
   ]);
 
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    { id: '1', title: 'Binary Logic Quiz', dueDate: '2026-04-25', submissions: 45, totalStudents: 120 },
-    { id: '2', title: 'Algorithm Complexity Report', dueDate: '2026-05-02', submissions: 12, totalStudents: 120 },
-  ]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const enrolledStudents = [
-    { id: '1', name: 'Alice Smith', email: 'alice@uni.edu', progress: 75, status: 'Active' },
-    { id: '2', name: 'Bob Johnson', email: 'bob@uni.edu', progress: 40, status: 'At Risk' },
-    { id: '3', name: 'Charlie Davis', email: 'charlie@uni.edu', progress: 92, status: 'Active' },
-    { id: '4', name: 'Diana Prince', email: 'diana@uni.edu', progress: 55, status: 'Inactive' },
-  ];
+  // New assignment form state
+  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
+  const [newAssignment, setNewAssignment] = useState({
+    title: '',
+    description: '',
+    dueDate: '',
+    points: 100
+  });
 
-  const handleUpload = () => {
-    toast.success('Asset synchronization initialized. Resource will be live in 10s.');
+  const fetchAssignments = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.courseAssignments(id!), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Transform backend assignment format to frontend expected format
+        const formatted = data.map((a: any) => ({
+          id: a._id,
+          title: a.title,
+          dueDate: new Date(a.dueDate).toLocaleDateString(),
+          submissions: a.submissions?.length || 0,
+          totalStudents: 100 // placeholder since course students length isn't fetched here yet
+        }));
+        setAssignments(formatted);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleAddAssignment = () => {
-    toast.info('Assignment protocol builder opened.');
+  // Fetch on mount or when tab changes to assignments
+  if (activeTab === 'assignments' && isLoading) {
+    fetchAssignments();
+  }
+
+  const handleCreateAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAssignment.title || !newAssignment.dueDate) {
+      toast.error("Please fill in required fields (Title, Due Date)");
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.assignments, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...newAssignment,
+          courseId: id
+        })
+      });
+
+      if (res.ok) {
+        toast.success("Assignment successfully generated!");
+        setIsCreatingAssignment(false);
+        setNewAssignment({ title: '', description: '', dueDate: '', points: 100 });
+        setIsLoading(true); // force refetch
+        fetchAssignments();
+      } else {
+        const errData = await res.json();
+        toast.error(errData.message || "Failed to create assignment");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error creating assignment");
+    }
   };
 
   return (
@@ -159,33 +218,84 @@ export function CourseManagement() {
             exit={{ opacity: 0, y: -10 }}
             className="space-y-4"
           >
-            {assignments.map(assign => (
-              <div key={assign.id} className="bg-card p-6 rounded-[32px] border border-border flex items-center justify-between hover:border-primary/30 transition-all group">
-                <div className="flex items-center gap-6">
-                  <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
-                    <Calendar className="w-7 h-7" />
+            {isLoading ? (
+              <div className="py-10 text-center text-sm font-bold text-muted-foreground">Syncing Evaluation Protocols...</div>
+            ) : assignments.length === 0 && !isCreatingAssignment ? (
+               <div className="py-10 text-center text-sm font-bold text-muted-foreground">No evaluation tasks exist yet.</div>
+            ) : (
+              assignments.map(assign => (
+                <div key={assign.id} className="bg-card p-6 rounded-[32px] border border-border flex flex-col md:flex-row md:items-center justify-between hover:border-primary/30 transition-all group gap-4">
+                  <div className="flex items-center gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                      <Calendar className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">{assign.title}</h3>
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest italic">Deadline: {assign.dueDate}</p>
+                    </div>
                   </div>
+                  <div className="flex items-center gap-8 md:gap-12">
+                     <div className="text-right">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase">Compliance Rate</p>
+                        <p className="text-sm font-black text-primary italic">{Math.round((assign.submissions / assign.totalStudents) * 100)}% ({assign.submissions}/{assign.totalStudents})</p>
+                     </div>
+                     <button className="h-11 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap">Audit Submissions</button>
+                  </div>
+                </div>
+              ))
+            )}
+            
+            {isCreatingAssignment ? (
+              <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm mt-6">
+                <h3 className="text-base font-black text-foreground uppercase tracking-widest mb-4">New Evaluation Protocol</h3>
+                <form onSubmit={handleCreateAssignment} className="space-y-4">
                   <div>
-                    <h3 className="text-lg font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">{assign.title}</h3>
-                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest italic">Deadline: {assign.dueDate}</p>
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Title</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newAssignment.title}
+                      onChange={e => setNewAssignment({...newAssignment, title: e.target.value})}
+                      className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
+                      placeholder="e.g. Midterm Report"
+                    />
                   </div>
-                </div>
-                <div className="flex items-center gap-12">
-                   <div className="text-right">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase">Compliance Rate</p>
-                      <p className="text-sm font-black text-primary italic">{Math.round((assign.submissions / assign.totalStudents) * 100)}% ({assign.submissions}/{assign.totalStudents})</p>
-                   </div>
-                   <button className="h-11 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all">Audit Submissions</button>
-                </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Due Date</label>
+                      <input 
+                        type="date" 
+                        required
+                        value={newAssignment.dueDate}
+                        onChange={e => setNewAssignment({...newAssignment, dueDate: e.target.value})}
+                        className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Points</label>
+                      <input 
+                        type="number" 
+                        value={newAssignment.points}
+                        onChange={e => setNewAssignment({...newAssignment, points: Number(e.target.value)})}
+                        className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pt-4">
+                    <button type="submit" className="h-10 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest">Deploy Task</button>
+                    <button type="button" onClick={() => setIsCreatingAssignment(false)} className="h-10 px-6 rounded-xl bg-secondary text-foreground text-[10px] font-black uppercase tracking-widest">Cancel</button>
+                  </div>
+                </form>
               </div>
-            ))}
-            <button 
-              onClick={handleAddAssignment}
-              className="w-full h-20 rounded-[32px] border-2 border-dashed border-border flex items-center justify-center gap-3 text-muted-foreground hover:bg-primary/5 hover:border-primary/50 hover:text-primary transition-all"
-            >
-              <Plus className="w-5 h-5" />
-              <span className="text-xs font-black uppercase tracking-widest">Generate New Evaluation Protocol</span>
-            </button>
+            ) : (
+              <button 
+                onClick={() => setIsCreatingAssignment(true)}
+                className="w-full h-20 rounded-[32px] border-2 border-dashed border-border flex items-center justify-center gap-3 text-muted-foreground hover:bg-primary/5 hover:border-primary/50 hover:text-primary transition-all mt-4"
+              >
+                <Plus className="w-5 h-5" />
+                <span className="text-xs font-black uppercase tracking-widest">Generate New Evaluation Protocol</span>
+              </button>
+            )}
           </motion.div>
         )}
 
