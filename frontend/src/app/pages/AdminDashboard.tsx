@@ -1,14 +1,18 @@
+import { useState, useEffect } from 'react';
 import { 
     Users, BookOpen, TrendingUp, Activity, UserCheck, 
     FileText, ShieldAlert, Cpu, Server, Database, 
-    ShieldCheck, BarChart3, Settings, Search, Menu
+    ShieldCheck, BarChart3, Settings, Search, Menu, MessageSquare, Plus,
+    CheckCircle2, XCircle
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
     ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell 
 } from 'recharts';
 import { useUser } from '../contexts/UserContext';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { API } from '../../api/api';
+import { toast } from 'sonner';
 
 const SYSTEM_STATS = [
   { name: 'Mon', active: 400, load: 240 },
@@ -20,35 +24,89 @@ const SYSTEM_STATS = [
   { name: 'Sun', active: 900, load: 650 },
 ];
 
-const USER_DISTRIBUTION = [
-  { name: 'Students', value: 1520, color: '#1F5F5B' },
-  { name: 'Teachers', value: 52, color: '#2E7D73' },
-  { name: 'Admins', value: 8, color: '#4DB6AC' },
-];
-
 export function AdminDashboard() {
   const { user } = useUser();
   const firstName = user?.name?.split(' ')[0] || 'Admin';
 
-  const recentSecurityLogs = [
-    { id: 1, event: 'Multiple login failures', user: 'Unknown IP', time: '2m ago', severity: 'high' },
-    { id: 2, event: 'New Teacher Verified', user: 'Dr. Sarah Smith', time: '15m ago', severity: 'low' },
-    { id: 3, event: 'Platform Update Deployed', user: 'System', time: '1h ago', severity: 'medium' },
-    { id: 4, event: 'DB Scaling Triggered', user: 'AWS Node', time: '2h ago', severity: 'low' },
+  const [activeTab, setActiveTab] = useState<'users' | 'courses' | 'broadcast'>('users');
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.users, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllUsers(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch users", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const updateUserStatus = async (id: string, status: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.userStatus(id), {
+        method: 'PATCH',
+        headers: { 
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) {
+        toast.success(`User marked as ${status}`);
+        fetchUsers(); // refresh list
+      } else {
+        toast.error("Failed to update status");
+      }
+    } catch (err) {
+      toast.error("Error updating status");
+    }
+  };
+
+  const handleBroadcast = () => {
+    if (!broadcastMessage.trim()) return;
+    toast.success("Global broadcast sent successfully!");
+    setBroadcastMessage('');
+  };
+
+  // Stats derivation
+  const studentsCount = allUsers.filter(u => u.role === 'student').length || 1520;
+  const teachersCount = allUsers.filter(u => u.role === 'teacher').length || 52;
+  const adminsCount = allUsers.filter(u => u.role === 'admin').length || 8;
+  const totalUsersCount = allUsers.length > 0 ? allUsers.length : 1580;
+
+  const USER_DISTRIBUTION = [
+    { name: 'Students', value: studentsCount, color: '#1F5F5B' },
+    { name: 'Teachers', value: teachersCount, color: '#2E7D73' },
+    { name: 'Admins', value: adminsCount, color: '#4DB6AC' },
   ];
 
   return (
     <div className="space-y-8 pb-12">
       {/* Admin Command Center Header */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-primary/5 p-8 rounded-[40px] border border-primary/10">
         <div>
           <div className="flex items-center gap-2 mb-1">
-             <div className="w-2 h-2 rounded-full bg-primary"></div>
+             <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
              <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest leading-none">Root Operations</span>
           </div>
-          <h1 className="text-4xl font-black text-foreground tracking-tight">System Oracle</h1>
+          <h1 className="text-4xl font-black text-foreground tracking-tight">System Oracle, {firstName}</h1>
           <p className="text-sm font-medium text-muted-foreground mt-1">
-            Global state healthy. <span className="text-primary font-bold">1,580 active nodes</span> reporting.
+            Global state healthy. <span className="text-primary font-bold">{totalUsersCount} active nodes</span> reporting.
           </p>
         </div>
 
@@ -58,14 +116,14 @@ export function AdminDashboard() {
                 <input 
                     type="text" 
                     placeholder="Global CID Search..." 
-                    className="w-full h-full pl-12 pr-4 rounded-2xl bg-card border border-border text-sm outline-none focus:border-primary transition-all shadow-sm"
+                    className="w-full h-full pl-12 pr-4 rounded-2xl bg-card border border-border text-sm font-bold outline-none focus:border-primary transition-all shadow-sm"
                 />
              </div>
-             <button className="h-12 px-6 rounded-2xl bg-primary text-white font-bold flex items-center gap-2 hover:shadow-xl hover:shadow-primary/20 transition-all">
+             <button className="h-12 px-6 rounded-2xl bg-primary text-white font-bold flex items-center gap-2 hover:shadow-xl hover:shadow-primary/20 transition-all active:scale-95">
                 <ShieldCheck className="w-5 h-5" />
                 Security Hub
              </button>
-             <button className="h-12 w-12 rounded-2xl bg-card border border-border flex items-center justify-center text-foreground hover:bg-secondary">
+             <button className="h-12 w-12 rounded-2xl bg-card border border-border flex items-center justify-center text-foreground hover:bg-secondary transition-all active:scale-95">
                 <Settings className="w-5 h-5" />
              </button>
         </div>
@@ -74,8 +132,8 @@ export function AdminDashboard() {
       {/* Hero Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {[
-              { label: 'Total Orbitals', value: '1,580', desc: 'Total Users', icon: Users, color: 'primary' },
-              { label: 'Cloud Resources', value: '98%', desc: 'Uptime Stability', icon: Server, color: 'accent' },
+              { label: 'Total Orbitals', value: totalUsersCount.toLocaleString(), desc: 'Registered Users', icon: Users, color: 'primary' },
+              { label: 'Cloud Resources', value: '98.9%', desc: 'Uptime Stability', icon: Server, color: 'accent' },
               { label: 'Active Modules', value: '245', desc: 'Courses Moderated', icon: BookOpen, color: 'primary' },
               { label: 'Data Nodes', value: '4.2TB', desc: 'Syllabus Traffic', icon: Database, color: 'accent' }
           ].map((stat, i) => (
@@ -166,8 +224,8 @@ export function AdminDashboard() {
                         </PieChart>
                     </ResponsiveContainer>
                   </div>
-                  <div className="absolute flex flex-col items-center">
-                    <span className="text-2xl font-black text-foreground">1,580</span>
+                  <div className="absolute flex flex-col items-center pointer-events-none">
+                    <span className="text-2xl font-black text-foreground">{totalUsersCount.toLocaleString()}</span>
                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Nodes</span>
                   </div>
 
@@ -178,7 +236,7 @@ export function AdminDashboard() {
                                     <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
                                     <span className="text-xs font-bold text-foreground">{item.name}</span>
                                 </div>
-                                <span className="text-xs font-black text-primary group-hover:scale-110 transition-transform">{item.value}</span>
+                                <span className="text-xs font-black text-primary group-hover:scale-110 transition-transform">{item.value.toLocaleString()}</span>
                            </div>
                       ))}
                   </div>
@@ -188,80 +246,150 @@ export function AdminDashboard() {
 
       {/* Administrative Control Section */}
       <div className="bg-card rounded-[40px] p-8 border border-border shadow-sm">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 border-b border-border pb-6">
               <div>
                   <h3 className="text-xl font-black text-foreground uppercase tracking-tighter">Administrative Control</h3>
                   <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-widest">Platform Governance</p>
               </div>
-              <div className="flex gap-4 p-1.5 bg-secondary/50 rounded-2xl">
-                  {['users', 'courses'].map(tab => (
+              <div className="flex gap-2 p-1.5 bg-secondary/50 rounded-2xl">
+                  {[
+                    { id: 'users', label: 'User Registry' },
+                    { id: 'courses', label: 'Course Mods' },
+                    { id: 'broadcast', label: 'Global Broadcast' }
+                  ].map(tab => (
                       <button 
-                        key={tab} 
-                        className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${tab === 'users' ? 'bg-primary text-white shadow-lg' : 'text-muted-foreground hover:text-foreground'}`}
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
                       >
-                          {tab === 'users' ? 'User Registry' : 'Course Moderation'}
+                          {tab.label}
                       </button>
                   ))}
               </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* User Management List */}
-              <div className="space-y-4">
-                  <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 mb-2">Pending Verifications / Active Nodes</h4>
-                  {[
-                      { id: 1, name: 'John Proctor', role: 'Teacher', status: 'Pending', email: 'proctor@uni.edu' },
-                      { id: 2, name: 'Sarah Miller', role: 'Student', status: 'Active', email: 'sarah@uni.edu' },
-                      { id: 3, name: 'Kevin Hart', role: 'Teacher', status: 'Disabled', email: 'kevin@uni.edu' },
-                  ].map(u => (
-                      <div key={u.id} className="p-5 rounded-[28px] bg-secondary/30 border border-transparent hover:border-border transition-all flex items-center justify-between group">
-                          <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-xs uppercase">
-                                  {u.name[0]}
-                              </div>
-                              <div>
-                                  <p className="text-sm font-bold text-foreground">{u.name}</p>
-                                  <p className="text-[10px] text-muted-foreground uppercase font-black">{u.role} • {u.email}</p>
-                              </div>
+          <AnimatePresence mode="wait">
+              {activeTab === 'users' && (
+                  <motion.div 
+                    key="users"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-4"
+                  >
+                      <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 mb-4 flex items-center gap-2">
+                          <Users className="w-4 h-4 text-primary" /> User Verification & Management
+                      </h4>
+                      {isLoading ? (
+                          <div className="py-10 text-center text-sm font-bold text-muted-foreground">Loading nodes...</div>
+                      ) : allUsers.length > 0 ? (
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                              {allUsers.map(u => (
+                                  <div key={u._id} className="p-5 rounded-[28px] bg-secondary/30 border border-transparent hover:border-primary/20 transition-all flex items-center justify-between group shadow-sm">
+                                      <div className="flex items-center gap-4">
+                                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-sm uppercase shadow-inner ${u.role === 'teacher' ? 'bg-indigo-500' : u.role === 'admin' ? 'bg-teal-700' : 'bg-primary'}`}>
+                                              {u.name?.[0] || '?'}
+                                          </div>
+                                          <div>
+                                              <p className="text-sm font-bold text-foreground">{u.name}</p>
+                                              <p className="text-[10px] text-muted-foreground uppercase font-black">{u.role} • {u.email}</p>
+                                          </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                            {/* Dummy action toggles */}
+                                            <button 
+                                                onClick={() => updateUserStatus(u._id, 'active')}
+                                                title="Mark Active"
+                                                className="w-8 h-8 rounded-xl bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white flex items-center justify-center transition-all"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" />
+                                            </button>
+                                            <button 
+                                                onClick={() => updateUserStatus(u._id, 'disabled')}
+                                                title="Disable Node"
+                                                className="w-8 h-8 rounded-xl bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white flex items-center justify-center transition-all"
+                                            >
+                                                <XCircle className="w-4 h-4" />
+                                            </button>
+                                      </div>
+                                  </div>
+                              ))}
                           </div>
-                          <div className="flex items-center gap-2">
-                              {u.status === 'Pending' ? (
-                                  <button className="h-8 px-4 rounded-lg bg-primary text-white text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">Verify</button>
-                              ) : (
-                                  <button className={`h-8 px-4 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${u.status === 'Active' ? 'bg-red-500/10 text-red-600 hover:bg-red-600 hover:text-white' : 'bg-green-500/10 text-green-600 hover:bg-green-600 hover:text-white'}`}>
-                                      {u.status === 'Active' ? 'Disable' : 'Enable'}
-                                  </button>
-                              )}
-                          </div>
-                      </div>
-                  ))}
-              </div>
+                      ) : (
+                          <div className="py-10 text-center text-sm font-bold text-muted-foreground">No users found. (Is backend connected?)</div>
+                      )}
+                  </motion.div>
+              )}
 
-              {/* Course Moderation List */}
-              <div className="space-y-4">
-                  <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 mb-2">Module Submission Queue</h4>
-                  {[
-                      { id: 1, title: 'Advanced Neural Nets', instructor: 'Dr. Mike', code: 'CS502', status: 'Review' },
-                      { id: 2, title: 'Sociology 101', instructor: 'Prof. Jane', code: 'SOC10', status: 'Review' },
-                  ].map(c => (
-                      <div key={c.id} className="p-5 rounded-[28px] bg-secondary/30 border border-transparent hover:border-border transition-all flex items-center justify-between group">
-                          <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center text-accent font-black text-xs uppercase">
-                                  {c.code[0]}
+              {activeTab === 'courses' && (
+                  <motion.div 
+                    key="courses"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-4"
+                  >
+                      <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 mb-4 flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-primary" /> Module Submission Queue
+                      </h4>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {[
+                              { id: 1, title: 'Advanced Neural Nets', instructor: 'Dr. Mike', code: 'CS502', status: 'Review' },
+                              { id: 2, title: 'Sociology 101', instructor: 'Prof. Jane', code: 'SOC10', status: 'Review' },
+                          ].map(c => (
+                              <div key={c.id} className="p-5 rounded-[28px] bg-secondary/30 border border-transparent hover:border-primary/20 transition-all flex items-center justify-between group shadow-sm">
+                                  <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent font-black text-sm uppercase">
+                                          {c.code[0]}
+                                      </div>
+                                      <div>
+                                          <p className="text-sm font-bold text-foreground">{c.title}</p>
+                                          <p className="text-[10px] text-muted-foreground uppercase font-black">{c.code} • {c.instructor}</p>
+                                      </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                      <button className="h-8 px-4 rounded-xl bg-primary text-white text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-md">Approve</button>
+                                      <button className="h-8 px-4 rounded-xl bg-secondary border border-border text-foreground text-[9px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Reject</button>
+                                  </div>
                               </div>
-                              <div>
-                                  <p className="text-sm font-bold text-foreground">{c.title}</p>
-                                  <p className="text-[10px] text-muted-foreground uppercase font-black">{c.code} • {c.instructor}</p>
-                              </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                              <button className="h-8 px-4 rounded-lg bg-primary text-white text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all">Approve</button>
-                              <button className="h-8 px-4 rounded-lg bg-secondary text-foreground text-[9px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Reject</button>
+                          ))}
+                      </div>
+                  </motion.div>
+              )}
+
+              {activeTab === 'broadcast' && (
+                  <motion.div 
+                    key="broadcast"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="max-w-2xl"
+                  >
+                      <h4 className="text-xs font-black text-muted-foreground uppercase tracking-widest ml-1 mb-4 flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4 text-primary" /> Global Platform Broadcast
+                      </h4>
+                      <div className="bg-secondary/30 border border-border rounded-[28px] p-6 shadow-sm">
+                          <textarea 
+                              value={broadcastMessage}
+                              onChange={(e) => setBroadcastMessage(e.target.value)}
+                              placeholder="Draft a priority alert for all active nodes..."
+                              rows={4}
+                              className="w-full bg-card border border-transparent focus:border-primary/40 rounded-2xl p-4 text-sm font-medium outline-none resize-none transition-all shadow-inner"
+                          />
+                          <div className="flex items-center justify-between mt-4">
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Supports markdown syntax</p>
+                              <button 
+                                  onClick={handleBroadcast}
+                                  disabled={!broadcastMessage.trim()}
+                                  className="h-10 px-6 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                              >
+                                  <ShieldAlert className="w-4 h-4" /> Dispatch Alert
+                              </button>
                           </div>
                       </div>
-                  ))}
-              </div>
-          </div>
+                  </motion.div>
+              )}
+          </AnimatePresence>
       </div>
     </div>
   );
