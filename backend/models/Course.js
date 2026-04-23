@@ -4,6 +4,7 @@ const courseSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
     code: { type: String, required: true },
+    departmentId: { type: String },
     category: { type: String, default: "General" },
     description: { type: String },
     semester: { type: String },

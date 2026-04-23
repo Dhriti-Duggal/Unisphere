@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Video, FileText, Plus, Users, Trash2, Edit2, 
   ChevronRight, Upload, PlayCircle, BookOpen,
   Calendar, CheckCircle2, AlertCircle, Search,
-  Download, File
+  Download, File, Radio
 } from 'lucide-react';
 import { useParams, Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -30,7 +30,7 @@ interface Assignment {
 export function CourseManagement() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'students'>('content');
+  const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'students' | 'live'>('content');
 
   const [resources, setResources] = useState<Resource[]>([
     { id: '1', type: 'video', title: '01. Course Introduction', duration: '12:45', date: '2026-04-10' },
@@ -48,6 +48,13 @@ export function CourseManagement() {
     description: '',
     dueDate: '',
     points: 100
+  });
+
+  const [liveClasses, setLiveClasses] = useState<any[]>([]);
+  const [isSchedulingLive, setIsSchedulingLive] = useState(false);
+  const [newLiveClass, setNewLiveClass] = useState({
+    title: '',
+    scheduledTime: ''
   });
 
   const fetchAssignments = async () => {
@@ -75,10 +82,65 @@ export function CourseManagement() {
     }
   };
 
-  // Fetch on mount or when tab changes to assignments
-  if (activeTab === 'assignments' && isLoading) {
-    fetchAssignments();
-  }
+  // Fetch on mount or when tab changes
+  useEffect(() => {
+    if (activeTab === 'assignments' && isLoading) {
+      fetchAssignments();
+    }
+    if (activeTab === 'live' && liveClasses.length === 0) {
+      fetchLiveClasses();
+    }
+  }, [activeTab, isLoading]);
+
+  const fetchLiveClasses = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.courseLiveClasses(id!), {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveClasses(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleScheduleLiveClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLiveClass.title || !newLiveClass.scheduledTime) {
+      toast.error("Please fill in required fields (Title, Scheduled Time)");
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.liveClasses, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...newLiveClass,
+          courseId: id
+        })
+      });
+
+      if (res.ok) {
+        toast.success("Live Node Scheduled successfully!");
+        setIsSchedulingLive(false);
+        setNewLiveClass({ title: '', scheduledTime: '' });
+        fetchLiveClasses();
+      } else {
+        const errData = await res.json();
+        toast.error(errData.message || "Failed to schedule live class");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error scheduling live class");
+    }
+  };
 
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,6 +211,7 @@ export function CourseManagement() {
       <div className="flex gap-4 p-2 bg-card border border-border rounded-3xl w-fit">
         {[
           { id: 'content', label: 'Knowledge Assets', icon: FileText },
+          { id: 'live', label: 'Live Nodes', icon: Radio },
           { id: 'assignments', label: 'Evaluation Tasks', icon: Calendar },
           { id: 'students', label: 'Learner Nodes', icon: Users },
         ].map(tab => (
@@ -207,6 +270,84 @@ export function CourseManagement() {
                 <p className="text-xs font-black text-foreground uppercase tracking-widest">Append Asset</p>
               </button>
             </div>
+          </motion.div>
+        )}
+
+        {activeTab === 'live' && (
+          <motion.div 
+            key="live"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="space-y-4"
+          >
+            {liveClasses.length === 0 && !isSchedulingLive ? (
+               <div className="py-10 text-center text-sm font-bold text-muted-foreground">No live nodes scheduled yet.</div>
+            ) : (
+              liveClasses.map(live => (
+                <div key={live._id} className="bg-card p-6 rounded-[32px] border border-border flex flex-col md:flex-row md:items-center justify-between hover:border-primary/30 transition-all group gap-4">
+                  <div className="flex items-center gap-6">
+                    <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                      <Radio className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">{live.title}</h3>
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest italic">Starts: {new Date(live.scheduledTime).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-8 md:gap-12">
+                     <div className="text-right">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase">Status</p>
+                        <p className="text-sm font-black text-primary italic uppercase">{live.status}</p>
+                     </div>
+                     <button className="h-11 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap">Manage Stream</button>
+                  </div>
+                </div>
+              ))
+            )}
+            
+            {isSchedulingLive ? (
+              <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm mt-6">
+                <h3 className="text-base font-black text-foreground uppercase tracking-widest mb-4">Initialize Live Node</h3>
+                <form onSubmit={handleScheduleLiveClass} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Stream Title</label>
+                      <input 
+                        type="text" 
+                        required
+                        value={newLiveClass.title}
+                        onChange={e => setNewLiveClass({...newLiveClass, title: e.target.value})}
+                        className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
+                        placeholder="e.g. Weekly Sync"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Date & Time</label>
+                      <input 
+                        type="datetime-local" 
+                        required
+                        value={newLiveClass.scheduledTime}
+                        onChange={e => setNewLiveClass({...newLiveClass, scheduledTime: e.target.value})}
+                        className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 pt-4">
+                    <button type="submit" className="h-10 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest">Schedule Node</button>
+                    <button type="button" onClick={() => setIsSchedulingLive(false)} className="h-10 px-6 rounded-xl bg-secondary text-foreground text-[10px] font-black uppercase tracking-widest">Cancel</button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <button 
+                onClick={() => setIsSchedulingLive(true)}
+                className="w-full h-20 rounded-[32px] border-2 border-dashed border-border flex items-center justify-center gap-3 text-muted-foreground hover:bg-primary/5 hover:border-primary/50 hover:text-primary transition-all mt-4"
+              >
+                <Radio className="w-5 h-5" />
+                <span className="text-xs font-black uppercase tracking-widest">Schedule New Live Node</span>
+              </button>
+            )}
           </motion.div>
         )}
 

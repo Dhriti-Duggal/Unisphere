@@ -8,6 +8,8 @@ import { Link } from 'react-router';
 import { useUser } from '../contexts/UserContext';
 import { motion } from 'motion/react';
 import { getCoursesByDepartment, getAssignmentsByDepartment, DEPARTMENTS } from '../data/departments';
+import { useState, useEffect } from 'react';
+import { API } from '../../api/api';
 
 // ─── Attendance Ring Component ────────────────────────────────────────────────
 function AttendanceRing({ pct }: { pct: number }) {
@@ -69,14 +71,59 @@ export function StudentDashboard() {
 
   const deptId = user.departmentId || 'cse';
   const dept = DEPARTMENTS.find(d => d.id === deptId);
-  const enrolledCourses = getCoursesByDepartment(deptId).slice(0, 4);
-  const allAssignments = getAssignmentsByDepartment(deptId);
-  const upcomingDeadlines = allAssignments
-    .filter(a => a.status === 'pending' || a.status === 'in-progress' || a.status === 'upcoming')
-    .slice(0, 3);
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
+  const [liveClass, setLiveClass] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        // Fetch real courses
+        const coursesRes = await fetch(API.studentCourses, { headers });
+        if (coursesRes.ok) {
+          const coursesData = await coursesRes.json();
+          const formattedCourses = coursesData.map((c: any) => ({
+            id: c._id,
+            title: c.title,
+            code: c.code,
+            instructor: c.teacher?.name || 'Instructor',
+            progress: c.progress || Math.floor(Math.random() * 40) + 10,
+            color: c.color || 'from-indigo-600 to-purple-600'
+          }));
+          setEnrolledCourses(formattedCourses);
+
+          // Fetch live classes for these courses
+          if (coursesData.length > 0) {
+            // For simplicity, just fetch live classes for the first course
+            const liveRes = await fetch(API.courseLiveClasses(coursesData[0]._id), { headers });
+            if (liveRes.ok) {
+              const liveData = await liveRes.json();
+              if (liveData.length > 0) {
+                // Find the nearest upcoming live class
+                setLiveClass({
+                  title: liveData[0].title,
+                  instructor: liveData[0].instructor?.name || 'Instructor',
+                  startTime: new Date(liveData[0].scheduledTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  courseCode: formattedCourses[0].code
+                });
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchDashboardData();
+  }, []);
 
   // Get course name by id for assignment display
-  const getCourseCode = (courseId: number) => {
+  const getCourseCode = (courseId: number | string) => {
     return enrolledCourses.find(c => c.id === courseId)?.code || 'COURSE';
   };
 
@@ -286,14 +333,14 @@ export function StudentDashboard() {
                     </h3>
                     <div className="w-2 h-2 rounded-full bg-primary animate-ping"></div>
                   </div>
-                  {enrolledCourses.length > 0 ? (
+                  {liveClass ? (
                     <div className="relative p-5 rounded-3xl bg-secondary/80 border border-border overflow-hidden">
                         <div className="absolute top-0 right-0 p-3">
                           <ArrowUpRight className="w-4 h-4 text-muted-foreground" />
                         </div>
-                        <span className="text-[10px] font-black text-primary uppercase">Starting in 20m</span>
-                        <h4 className="text-sm font-bold text-foreground mt-2 leading-tight">{enrolledCourses[0].title}</h4>
-                        <p className="text-xs font-bold text-muted-foreground mt-1">{enrolledCourses[0].instructor}</p>
+                        <span className="text-[10px] font-black text-primary uppercase">Starting at {liveClass.startTime}</span>
+                        <h4 className="text-sm font-bold text-foreground mt-2 leading-tight">{liveClass.title}</h4>
+                        <p className="text-xs font-bold text-muted-foreground mt-1">{liveClass.courseCode} • {liveClass.instructor}</p>
                         <Link 
                           to="/student/live-class"
                           className="w-full h-11 mt-4 rounded-xl bg-primary text-white text-xs font-bold shadow-md hover:shadow-primary/30 transition-all flex items-center justify-center"

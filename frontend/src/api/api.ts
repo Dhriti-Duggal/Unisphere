@@ -9,7 +9,11 @@ export const API = {
   userStatus: (id: string) => `${BASE_URL}/users/${id}/status`,
   courses: `${BASE_URL}/courses`,
   teacherCourses: `${BASE_URL}/courses/teacher`,
+  studentCourses: `${BASE_URL}/courses/student`,
   courseDetails: (id: string) => `${BASE_URL}/courses/${id}`,
   assignments: `${BASE_URL}/assignments`,
-  courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`
+  courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`,
+  liveClasses: `${BASE_URL}/live-classes`,
+  courseLiveClasses: (courseId: string) => `${BASE_URL}/live-classes/course/${courseId}`,
+  groupLiveClasses: (groupId: string) => `${BASE_URL}/live-classes/group/${groupId}`
 };
