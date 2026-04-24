@@ -45,6 +45,16 @@ const userSchema = new mongoose.Schema({
     default: ''
   },
 
+  group: {
+    type: String,
+    default: ''
+  },
+
+  teachingGroups: {
+    type: [String],
+    default: []
+  },
+
   bio: {
     type: String,
     default: ''

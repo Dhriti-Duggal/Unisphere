@@ -29,6 +29,8 @@ exports.updateProfile = async (req, res) => {
       "department",
       "studentId",
       "year",
+      "group",
+      "teachingGroups",
       "onboardingComplete",
     ];
 

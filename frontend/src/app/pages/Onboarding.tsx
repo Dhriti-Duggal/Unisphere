@@ -10,6 +10,7 @@ import { DEPARTMENTS } from '../data/departments';
 
 const STUDENT_YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate'];
 const TEACHER_TITLES = ['Assistant Professor', 'Associate Professor', 'Professor', 'Lecturer', 'Visiting Faculty'];
+const GROUPS = ['Group 1', 'Group 2', 'Group 3', 'Group 4', 'Group 5'];
 
 export function Onboarding() {
   const navigate = useNavigate();
@@ -20,14 +21,20 @@ export function Onboarding() {
   const [step, setStep] = useState(1);
   const [selectedDeptId, setSelectedDeptId] = useState('');
   const [year, setYear] = useState('');
+  const [group, setGroup] = useState('');
+  const [teachingGroups, setTeachingGroups] = useState<string[]>([]);
   const [bio, setBio] = useState('');
   const [idField, setIdField] = useState('');   // studentId or employeeId
   const [isSaving, setIsSaving] = useState(false);
 
+  const toggleTeachingGroup = (g: string) => {
+    setTeachingGroups(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
+  };
+
   const selectedDept = DEPARTMENTS.find(d => d.id === selectedDeptId);
 
   const canProceedStep1 = !!selectedDeptId;
-  const canProceedStep2 = isTeacher ? true : !!year; // year required for students only
+  const canProceedStep2 = isTeacher ? teachingGroups.length > 0 : (!!year && !!group);
 
   const handleFinish = async () => {
     setIsSaving(true);
@@ -41,6 +48,7 @@ export function Onboarding() {
         year: year || 'Faculty',
         bio: bio || `${selectedDept?.name} faculty at UniSphere.`,
         studentId: idField.trim() || autoId,
+        teachingGroups,
         enrollmentDate: `April ${new Date().getFullYear()}`,
         onboardingComplete: true,
       });
@@ -53,6 +61,7 @@ export function Onboarding() {
         year,
         bio: bio || `${selectedDept?.name} student at UniSphere.`,
         studentId: idField.trim() || autoId,
+        group,
         enrollmentDate: `April ${new Date().getFullYear()}`,
         onboardingComplete: true,
       });
@@ -229,6 +238,33 @@ export function Onboarding() {
                         {opt}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Group Selection */}
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-foreground/80 ml-1 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary" />
+                    {isTeacher ? 'Groups You Teach' : 'Your Class Group'}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                    {GROUPS.map(opt => {
+                      const isSelected = isTeacher ? teachingGroups.includes(opt) : group === opt;
+                      return (
+                        <button
+                          key={opt} type="button" 
+                          onClick={() => isTeacher ? toggleTeachingGroup(opt) : setGroup(opt)}
+                          className={`py-3 rounded-xl text-xs font-bold border-2 transition-all ${
+                            isSelected
+                              ? 'border-primary bg-primary text-white shadow-lg shadow-primary/20'
+                              : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

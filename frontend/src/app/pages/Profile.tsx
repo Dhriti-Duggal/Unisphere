@@ -253,6 +253,27 @@ export function Profile() {
                 </select>
               </div>
 
+              {/* Group/Class */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">
+                  {user.role === 'teacher' ? 'Teaching Groups (Comma Separated)' : 'Class Group'}
+                </label>
+                <input
+                  type="text"
+                  value={user.role === 'teacher' ? (form.teachingGroups?.join(', ') || '') : (form.group || '')}
+                  onChange={(e) => {
+                    if (user.role === 'teacher') {
+                      setForm(prev => ({ ...prev, teachingGroups: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }));
+                    } else {
+                      setForm(prev => ({ ...prev, group: e.target.value }));
+                    }
+                    setSaveStatus('idle');
+                  }}
+                  className="w-full h-14 px-5 rounded-[20px] bg-secondary border border-transparent focus:border-primary/30 transition-all outline-none font-bold text-foreground"
+                  placeholder={user.role === 'teacher' ? 'Group 1, Group 2' : 'Group 1'}
+                />
+              </div>
+
               {/* Bio */}
               <div className="md:col-span-2 space-y-2">
                 <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Bio</label>
