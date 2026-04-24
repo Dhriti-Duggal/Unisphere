@@ -71,6 +71,7 @@ export function StudentDashboard() {
 
   const deptId = user.departmentId || 'cse';
   const dept = DEPARTMENTS.find(d => d.id === deptId);
+  const upcomingDeadlines = getAssignmentsByDepartment(deptId).filter(a => a.status === 'pending' || a.status === 'in-progress').slice(0, 3);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [liveClass, setLiveClass] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
