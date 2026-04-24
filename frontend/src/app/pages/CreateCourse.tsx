@@ -18,6 +18,7 @@ export function CreateCourse() {
     category: 'Computer Science',
     description: '',
     semester: 'Spring 2026',
+    group: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -125,6 +126,21 @@ export function CreateCourse() {
                                   <option>Spring 2026</option>
                                   <option>Fall 2026</option>
                                   <option>Winter 2027</option>
+                              </select>
+                          </div>
+                          <div className="space-y-2 col-span-2">
+                              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Target Class Group (Optional)</label>
+                              <select 
+                                value={formData.group}
+                                onChange={(e) => setFormData({...formData, group: e.target.value})}
+                                className="w-full h-14 px-6 rounded-2xl bg-secondary border border-transparent focus:border-primary/20 transition-all outline-none font-bold appearance-none"
+                              >
+                                  <option value="">All Groups (Global)</option>
+                                  <option value="Group 1">Group 1</option>
+                                  <option value="Group 2">Group 2</option>
+                                  <option value="Group 3">Group 3</option>
+                                  <option value="Group 4">Group 4</option>
+                                  <option value="Group 5">Group 5</option>
                               </select>
                           </div>
                       </div>

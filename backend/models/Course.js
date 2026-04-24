@@ -8,6 +8,7 @@ const courseSchema = new mongoose.Schema(
     category: { type: String, default: "General" },
     description: { type: String },
     semester: { type: String },
+    group: { type: String, default: "" },
     teacher: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     progress: { type: Number, default: 0 },

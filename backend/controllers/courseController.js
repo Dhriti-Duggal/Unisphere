@@ -2,7 +2,7 @@ const Course = require("../models/Course");
 
 exports.createCourse = async (req, res) => {
   try {
-    const { title, code, category, description, semester } = req.body;
+    const { title, code, category, description, semester, group } = req.body;
     const departmentId = req.user.departmentId; // inherit from teacher
     
     // Pick a random gradient for the course card
@@ -21,6 +21,7 @@ exports.createCourse = async (req, res) => {
       category,
       description,
       semester,
+      group: group || "",
       teacher: req.user._id,
       departmentId,
       color: randomColor
@@ -35,7 +36,11 @@ exports.createCourse = async (req, res) => {
 exports.getTeacherCourses = async (req, res) => {
   try {
     const departmentId = req.user.departmentId;
-    const courses = await Course.find({ departmentId }).populate("students", "name email avatarUrl");
+    let query = { departmentId };
+    if (req.user.teachingGroups && req.user.teachingGroups.length > 0) {
+      query.$or = [{ group: "" }, { group: { $in: req.user.teachingGroups } }];
+    }
+    const courses = await Course.find(query).populate("students", "name email avatarUrl");
     res.json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -57,7 +62,11 @@ exports.getCourseById = async (req, res) => {
 exports.getStudentCourses = async (req, res) => {
   try {
     const departmentId = req.user.departmentId;
-    const courses = await Course.find({ departmentId }).populate("teacher", "name email");
+    let query = { departmentId };
+    if (req.user.group) {
+      query.$or = [{ group: "" }, { group: req.user.group }];
+    }
+    const courses = await Course.find(query).populate("teacher", "name email");
     res.json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });

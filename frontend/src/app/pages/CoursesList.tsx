@@ -22,8 +22,8 @@ export function CoursesList() {
 
   const filteredCourses = baseCourses.filter(course => {
     const matchesSearch =
-      course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.code.toLowerCase().includes(searchQuery.toLowerCase());
+      (course.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (course.code || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesDept = selectedDeptFilter === 'all' || course.departmentId === selectedDeptFilter;
     return matchesSearch && matchesDept;
   });
