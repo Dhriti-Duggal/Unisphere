@@ -34,7 +34,8 @@ exports.createCourse = async (req, res) => {
 
 exports.getTeacherCourses = async (req, res) => {
   try {
-    const courses = await Course.find({ teacher: req.user._id }).populate("students", "name email avatarUrl");
+    const departmentId = req.user.departmentId;
+    const courses = await Course.find({ departmentId }).populate("students", "name email avatarUrl");
     res.json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -55,11 +56,37 @@ exports.getCourseById = async (req, res) => {
 
 exports.getStudentCourses = async (req, res) => {
   try {
-    // For now, student sees all courses in their department. 
-    // In the future, this can be changed to explicit enrollment.
     const departmentId = req.user.departmentId;
     const courses = await Course.find({ departmentId }).populate("teacher", "name email");
     res.json(courses);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getEnrolledCourses = async (req, res) => {
+  try {
+    const courses = await Course.find({ students: req.user._id }).populate("teacher", "name email");
+    res.json(courses);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.enrollCourse = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+    const studentId = req.user._id;
+    
+    const course = await Course.findById(courseId);
+    if (!course) return res.status(404).json({ message: "Course not found" });
+
+    if (!course.students.includes(studentId)) {
+      course.students.push(studentId);
+      await course.save();
+    }
+    
+    res.json({ message: "Successfully enrolled in course", course });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

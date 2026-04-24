@@ -57,7 +57,8 @@ export function TeacherDashboard() {
             title: c.title,
             code: c.code,
             credits: 3, // mock
-            students: c.students?.length || 0,
+            studentsCount: c.students?.length || 0,
+            studentsList: c.students || [],
             progress: c.progress || Math.floor(Math.random() * 40) + 10,
             color: c.color || 'from-indigo-600 to-purple-600'
           }));
@@ -225,7 +226,7 @@ export function TeacherDashboard() {
                     <BookOpen className="w-6 h-6" />
                   </div>
                   <span className="text-[10px] font-black text-muted-foreground bg-secondary px-2 py-1 rounded-lg uppercase">
-                    {course.students} students
+                    {course.studentsCount} students
                   </span>
                 </div>
 
@@ -304,40 +305,42 @@ export function TeacherDashboard() {
 
             <div className="bg-card rounded-[32px] border border-border overflow-hidden">
               <div className="p-5 border-b border-border flex items-center justify-between">
-                <p className="text-sm font-black text-foreground">{myCourses[0]?.title}</p>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">{myCourses[0]?.students} enrolled</span>
+                <p className="text-sm font-black text-foreground">{myCourses[0]?.title || 'Course'}</p>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">{myCourses[0]?.studentsCount || 0} enrolled</span>
               </div>
               <div className="divide-y divide-border">
-                {MOCK_STUDENTS.map((s, i) => (
-                  <div key={i} className="flex items-center justify-between px-6 py-4 hover:bg-secondary/30 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-black text-sm">
-                        {s.avatar}
+                {myCourses[0]?.studentsList && myCourses[0].studentsList.length > 0 ? (
+                  myCourses[0].studentsList.map((s: any) => (
+                    <div key={s._id} className="flex items-center justify-between px-6 py-4 hover:bg-secondary/30 transition-all">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-black text-sm overflow-hidden">
+                          {s.avatarUrl ? <img src={s.avatarUrl} alt="" className="w-full h-full object-cover" /> : (s.name ? s.name[0].toUpperCase() : 'S')}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-foreground">{s.name}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                            🟢 Active
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-foreground">{s.name}</p>
-                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                          {s.status === 'active' ? '🟢 Active' : '🔴 Inactive'}
-                        </p>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase">Grade</p>
+                          <p className="text-sm font-black text-primary">--%</p>
+                        </div>
+                        <Link
+                          to={`/teacher/chat`}
+                          title="Message student"
+                          className="w-9 h-9 rounded-xl bg-secondary text-muted-foreground hover:text-primary hover:bg-primary/10 flex items-center justify-center transition-all"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </Link>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase">Grade</p>
-                        <p className={`text-sm font-black ${s.grade >= 85 ? 'text-green-600' : s.grade >= 70 ? 'text-primary' : 'text-orange-500'}`}>
-                          {s.grade}%
-                        </p>
-                      </div>
-                      <Link
-                        to={`/teacher/chat`}
-                        title="Message student"
-                        className="w-9 h-9 rounded-xl bg-secondary text-muted-foreground hover:text-primary hover:bg-primary/10 flex items-center justify-center transition-all"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                   <div className="p-8 text-center text-sm font-bold text-muted-foreground">No students enrolled yet.</div>
+                )}
               </div>
             </div>
           </div>

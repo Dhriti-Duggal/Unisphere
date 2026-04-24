@@ -81,8 +81,8 @@ export function StudentDashboard() {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
         
-        // Fetch real courses
-        const coursesRes = await fetch(API.studentCourses, { headers });
+        // Fetch real enrolled courses
+        const coursesRes = await fetch(API.enrolledCourses, { headers });
         if (coursesRes.ok) {
           const coursesData = await coursesRes.json();
           const formattedCourses = coursesData.map((c: any) => ({

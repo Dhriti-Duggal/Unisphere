@@ -1,17 +1,21 @@
 import { BookOpen, Users, Search, GraduationCap } from 'lucide-react';
 import { Link } from 'react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '../contexts/UserContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { toast } from 'sonner';
 import {
-  getCoursesByDepartment, getDepartmentById, ALL_COURSES, DEPARTMENTS, type Course,
+  getDepartmentById, DEPARTMENTS, type Course,
 } from '../data/departments';
+import { API } from '../../api/api';
 
 export function CoursesList() {
   const { user } = useUser();
   const deptId = user.departmentId || 'cse';
   const dept = getDepartmentById(deptId);
-  const baseCourses: Course[] = user.role === 'student' ? getCoursesByDepartment(deptId) : ALL_COURSES;
+  const [baseCourses, setBaseCourses] = useState<any[]>([]);
+  const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('all');
@@ -24,7 +28,75 @@ export function CoursesList() {
     return matchesSearch && matchesDept;
   });
 
+  useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { Authorization: `Bearer ${token}` };
+        
+        let url = API.courses;
+        if (user.role === 'student') url = API.studentCourses;
+        else if (user.role === 'teacher') url = API.teacherCourses;
+        
+        const res = await fetch(url, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          const formatted = data.map((c: any) => ({
+            id: c._id,
+            title: c.title,
+            code: c.code,
+            category: c.category || 'Core',
+            instructor: c.teacher?.name || 'Instructor',
+            credits: 3, // mock
+            students: c.students?.length || 0,
+            progress: c.progress || Math.floor(Math.random() * 40) + 10,
+            color: c.color || 'from-indigo-600 to-purple-600',
+            departmentId: c.departmentId
+          }));
+          setBaseCourses(formatted);
+
+          // If student, also fetch enrolled courses to know which ones they have
+          if (user.role === 'student') {
+            const enrolledRes = await fetch(API.enrolledCourses, { headers });
+            if (enrolledRes.ok) {
+              const enrolledData = await enrolledRes.json();
+              setEnrolledIds(new Set(enrolledData.map((c: any) => c._id)));
+            }
+          }
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchCourses();
+  }, [user.role]);
+
+  const handleEnroll = async (e: React.MouseEvent, courseId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.enrollCourse(courseId), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        toast.success("Successfully enrolled!");
+        setEnrolledIds(prev => new Set(prev).add(courseId));
+      } else {
+        toast.error("Failed to enroll");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Network error");
+    }
+  };
+
   const rolePath = user.role === 'admin' ? 'admin' : user.role === 'teacher' ? 'teacher' : 'student';
+
+  if (isLoading) return <div className="p-20 text-center font-bold text-muted-foreground">Loading courses...</div>;
 
   return (
     <div className="space-y-8 pb-20">
@@ -111,7 +183,16 @@ export function CoursesList() {
                     </div>
                   </div>
                   <div className="mt-6 flex items-center justify-between">
-                    <span className="text-[10px] font-black text-primary uppercase tracking-widest">Open Course →</span>
+                    {user.role === 'student' && !enrolledIds.has(course.id) ? (
+                      <button 
+                        onClick={(e) => handleEnroll(e, course.id)}
+                        className="h-8 px-4 rounded-lg bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all"
+                      >
+                        Enroll Now
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-black text-primary uppercase tracking-widest">Open Course →</span>
+                    )}
                     <span className="text-[10px] font-bold text-muted-foreground">{course.credits} Credits</span>
                   </div>
                 </div>

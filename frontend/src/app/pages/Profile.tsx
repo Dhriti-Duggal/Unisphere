@@ -234,18 +234,22 @@ export function Profile() {
                 </select>
               </div>
 
-              {/* Year */}
+              {/* Year/Title */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Year of Study</label>
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">
+                  {user.role === 'teacher' ? 'Faculty Title' : 'Year of Study'}
+                </label>
                 <select
                   value={form.year || ''}
                   onChange={handleField('year')}
                   className="w-full h-14 px-5 rounded-[20px] bg-secondary border border-transparent focus:border-primary/30 transition-all outline-none font-bold text-foreground appearance-none"
                 >
-                  <option value="">Select year...</option>
-                  {['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate'].map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
+                  <option value="">Select...</option>
+                  {user.role === 'teacher' ? (
+                    ['Assistant Professor', 'Associate Professor', 'Professor', 'Lecturer', 'Visiting Faculty'].map(y => <option key={y} value={y}>{y}</option>)
+                  ) : (
+                    ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate'].map(y => <option key={y} value={y}>{y}</option>)
+                  )}
                 </select>
               </div>
 
@@ -270,10 +274,10 @@ export function Profile() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
-                { label: 'Student ID', field: 'studentId' },
-                { label: 'Major / Specialisation', field: 'major' },
-                { label: 'GPA', field: 'gpa' },
-                { label: 'Enrollment Date', field: 'enrollmentDate' },
+                { label: user.role === 'teacher' ? 'Employee ID' : 'Student ID', field: 'studentId' },
+                { label: user.role === 'teacher' ? 'Specialisation' : 'Major / Specialisation', field: 'major' },
+                { label: user.role === 'teacher' ? 'Performance Rating' : 'GPA', field: 'gpa' },
+                { label: user.role === 'teacher' ? 'Join Date' : 'Enrollment Date', field: 'enrollmentDate' },
               ].map(({ label, field }) => (
                 <div key={field} className="space-y-2">
                   <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">{label}</label>
