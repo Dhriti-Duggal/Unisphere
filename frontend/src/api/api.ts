@@ -14,6 +14,8 @@ export const API = {
   courseDetails: (id: string) => `${BASE_URL}/courses/${id}`,
   enrollCourse: (id: string) => `${BASE_URL}/courses/${id}/enroll`,
   assignments: `${BASE_URL}/assignments`,
+  assignmentById: (id: string) => `${BASE_URL}/assignments/${id}`,
+  submitAssignment: (id: string) => `${BASE_URL}/assignments/${id}/submit`,
   courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`,
   liveClasses: `${BASE_URL}/live-classes`,
   courseLiveClasses: (courseId: string) => `${BASE_URL}/live-classes/course/${courseId}`,

@@ -42,7 +42,7 @@ export function CoursesList() {
         if (res.ok) {
           const data = await res.json();
           const formatted = data.map((c: any) => ({
-            id: c._id,
+            id: c.id,
             title: c.title,
             code: c.code,
             category: c.category || 'Core',
@@ -60,7 +60,7 @@ export function CoursesList() {
             const enrolledRes = await fetch(API.enrolledCourses, { headers });
             if (enrolledRes.ok) {
               const enrolledData = await enrolledRes.json();
-              setEnrolledIds(new Set(enrolledData.map((c: any) => c._id)));
+              setEnrolledIds(new Set(enrolledData.map((c: any) => c.id)));
             }
           }
         }
@@ -149,7 +149,7 @@ export function CoursesList() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <AnimatePresence mode="popLayout">
           {filteredCourses.map((course) => (
-            <motion.div layout key={course.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
+            <motion.div layout key={course.id || `${course.code}-${course.title}`} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}>
               <Link to={`/${rolePath}/courses/${course.id}`} id={`course-${course.id}`}
                 className="bg-card rounded-[32px] border border-border overflow-hidden hover:shadow-2xl hover:shadow-primary/5 transition-all group block">
                 <div className={`h-32 bg-gradient-to-br ${course.color} p-8 flex items-start justify-between relative`}>

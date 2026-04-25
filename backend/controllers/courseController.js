@@ -126,6 +126,27 @@ exports.getCourseById = async (req, res) => {
 // POST /api/courses/:id/enroll
 exports.enrollCourse = async (req, res) => {
   try {
+    if (req.user.role !== "student") {
+      return res.status(403).json({ message: "Only students can enroll in courses" });
+    }
+
+    const course = await prisma.course.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, departmentId: true, group: true },
+    });
+
+    if (!course) {
+      return res.status(404).json({ message: "Course not found" });
+    }
+
+    // Keep enrollment aligned with student onboarding data.
+    if (course.departmentId && req.user.departmentId && course.departmentId !== req.user.departmentId) {
+      return res.status(400).json({ message: "Course is outside your department" });
+    }
+    if (course.group && req.user.group && course.group !== req.user.group) {
+      return res.status(400).json({ message: "Course is not available for your group" });
+    }
+
     const enrollment = await prisma.courseStudent.upsert({
       where: { userId_courseId: { userId: req.user.id, courseId: req.params.id } },
       update: {},

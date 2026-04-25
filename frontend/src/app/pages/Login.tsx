@@ -77,6 +77,7 @@ export function Login() {
         body: JSON.stringify({
           email: trimmedEmail,
           password: trimmedPassword,
+          role: selectedRole,
         }),
       });
 
@@ -98,6 +99,7 @@ export function Login() {
       const userRoleData = ROLES.find((r) => r.id === userRole) || selectedRoleData;
 
       replaceUser({
+        id: data.user.id || '',
         name: data.user.name || '',
         email: data.user.email || '',
         phone: data.user.phone || '',

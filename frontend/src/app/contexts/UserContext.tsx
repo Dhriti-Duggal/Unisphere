@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
  
 export interface UserProfile {
+  id?: string;
   name: string;
   email: string;
   phone: string;
@@ -32,6 +33,7 @@ interface UserContextType {
 }
  
 const defaultUser: UserProfile = {
+  id: '',
   name: 'John Doe',
   email: 'john@example.com',
   phone: '+1 234 567 890',

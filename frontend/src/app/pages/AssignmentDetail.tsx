@@ -1,11 +1,13 @@
 import { useParams, Link, useNavigate } from 'react-router';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Calendar, Award, ClipboardList, CheckCircle2,
   Upload, FileText, Clock, AlertCircle, BookOpen, ChevronRight
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import { getAssignmentById, getCourseById } from '../data/departments';
 import { useUser } from '../contexts/UserContext';
+import { API } from '../../api/api';
+import { toast } from 'sonner';
 
 const TYPE_GRADIENTS: Record<string, string> = {
   lab: 'from-blue-500 to-cyan-500',
@@ -28,9 +30,41 @@ export function AssignmentDetail() {
   const navigate = useNavigate();
   const { user } = useUser();
   const rolePath = user.role === 'teacher' ? 'teacher' : 'student';
+  const [assignment, setAssignment] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const assignment = getAssignmentById(Number(id));
-  const course = assignment ? getCourseById(assignment.courseId) : null;
+  useEffect(() => {
+    const fetchAssignment = async () => {
+      if (!id) return;
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(API.assignmentById(id), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAssignment(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAssignment();
+  }, [id]);
+
+  const course = assignment?.course;
+  const mySubmission = useMemo(
+    () => assignment?.submissions?.find((s: any) => s.studentId === user.id),
+    [assignment, user.id]
+  );
+
+  if (isLoading) {
+    return <div className="text-center py-20 text-muted-foreground font-bold">Loading assignment...</div>;
+  }
 
   if (!assignment || !course) {
     return (
@@ -42,14 +76,54 @@ export function AssignmentDetail() {
     );
   }
 
-  const statusCfg = STATUS_CONFIG[assignment.status] || STATUS_CONFIG['upcoming'];
-  const gradient = TYPE_GRADIENTS[assignment.type] || 'from-primary to-accent';
-  const isSubmittable = assignment.status === 'pending' || assignment.status === 'in-progress';
-  const isGraded = assignment.status === 'graded';
+  const currentStatus = user.role === 'student' ? (mySubmission?.status || assignment.status) : assignment.status;
+  const statusCfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['upcoming'];
+  const gradient = TYPE_GRADIENTS[(assignment.type || 'project').toLowerCase()] || 'from-primary to-accent';
+  const isSubmittable = user.role === 'student' && (currentStatus === 'pending' || currentStatus === 'in-progress' || currentStatus === 'submitted');
+  const isGraded = currentStatus === 'graded';
 
   const daysUntilDue = Math.ceil(
-    (new Date(assignment.dueDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+    (new Date(assignment.dueDate || Date.now()).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
   );
+
+  const handleSubmit = async () => {
+    if (!id) return;
+    if (!selectedFile && !linkUrl.trim()) {
+      toast.error('Upload a document or provide a link first.');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      if (selectedFile) formData.append('file', selectedFile);
+      if (linkUrl.trim()) formData.append('linkUrl', linkUrl.trim());
+
+      const res = await fetch(API.submitAssignment(id), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to submit assignment');
+        return;
+      }
+      toast.success('Assignment submitted successfully');
+      setSelectedFile(null);
+      setLinkUrl('');
+      setAssignment((prev: any) => {
+        if (!prev) return prev;
+        const rest = (prev.submissions || []).filter((s: any) => s.studentId !== user.id);
+        return { ...prev, submissions: [...rest, data.submission] };
+      });
+    } catch (err) {
+      console.error(err);
+      toast.error('Network error while submitting');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-8 pb-20">
@@ -73,7 +147,7 @@ export function AssignmentDetail() {
           {/* Type + Status Row */}
           <div className="flex items-center gap-3 mb-6">
             <span className="px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest border border-white/30">
-              {assignment.type}
+              {(assignment.type || 'Project')}
             </span>
             <span className="px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest border border-white/30">
               {course.code}
@@ -89,7 +163,7 @@ export function AssignmentDetail() {
             <div>
               <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Due Date</p>
               <p className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> {assignment.dueDate}
+                <Calendar className="w-4 h-4" /> {new Date(assignment.dueDate).toLocaleDateString()}
               </p>
             </div>
             <div>
@@ -100,7 +174,7 @@ export function AssignmentDetail() {
             </div>
             <div>
               <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Instructor</p>
-              <p className="text-base font-bold text-white">{course.instructor}</p>
+              <p className="text-base font-bold text-white">{course.teacher?.name || 'Instructor'}</p>
             </div>
             {!isGraded && daysUntilDue > 0 && (
               <div>
@@ -156,7 +230,7 @@ export function AssignmentDetail() {
           )}
 
           {/* Graded result */}
-          {isGraded && assignment.grade !== undefined && (
+          {isGraded && mySubmission?.grade !== undefined && mySubmission?.grade !== null && (
             <div className="bg-green-500/5 border border-green-500/20 rounded-[32px] p-8">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-green-500 flex items-center justify-center text-white shadow-lg">
@@ -165,10 +239,10 @@ export function AssignmentDetail() {
                 <div>
                   <p className="text-xs font-black text-green-600 uppercase tracking-widest mb-1">Assignment Graded</p>
                   <p className="text-3xl font-black text-foreground">
-                    {assignment.grade} <span className="text-muted-foreground text-lg font-bold">/ {assignment.points}</span>
+                    {mySubmission.grade} <span className="text-muted-foreground text-lg font-bold">/ {assignment.points}</span>
                   </p>
                   <p className="text-sm font-bold text-green-600 mt-1">
-                    {Math.round((assignment.grade / assignment.points) * 100)}% — {assignment.grade / assignment.points >= 0.9 ? 'Excellent' : assignment.grade / assignment.points >= 0.75 ? 'Good' : 'Needs Improvement'}
+                    {Math.round((mySubmission.grade / assignment.points) * 100)}% — {mySubmission.grade / assignment.points >= 0.9 ? 'Excellent' : mySubmission.grade / assignment.points >= 0.75 ? 'Good' : 'Needs Improvement'}
                   </p>
                 </div>
               </div>
@@ -195,7 +269,7 @@ export function AssignmentDetail() {
               </div>
               <div className="flex justify-between text-xs font-bold">
                 <span className="text-muted-foreground uppercase tracking-widest">Type</span>
-                <span className="text-foreground capitalize">{assignment.type}</span>
+                <span className="text-foreground capitalize">{assignment.type || 'project'}</span>
               </div>
               <div className="flex justify-between text-xs font-bold">
                 <span className="text-muted-foreground uppercase tracking-widest">Course</span>
@@ -204,7 +278,7 @@ export function AssignmentDetail() {
               <div className="flex justify-between text-xs font-bold">
                 <span className="text-muted-foreground uppercase tracking-widest">Due</span>
                 <span className={daysUntilDue <= 2 && !isGraded ? 'text-red-500 font-black' : 'text-foreground'}>
-                  {assignment.dueDate}
+                  {new Date(assignment.dueDate).toLocaleDateString()}
                 </span>
               </div>
             </div>
@@ -225,20 +299,45 @@ export function AssignmentDetail() {
               )}
 
               {/* File drop area */}
-              <div className="border-2 border-dashed border-border hover:border-primary rounded-2xl p-6 text-center transition-colors cursor-pointer group">
+              <label className="border-2 border-dashed border-border hover:border-primary rounded-2xl p-6 text-center transition-colors cursor-pointer group block">
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                />
                 <Upload className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2 group-hover:text-primary transition-colors" />
                 <p className="text-xs font-bold text-muted-foreground group-hover:text-foreground transition-colors">
                   Drop files here or click to upload
                 </p>
                 <p className="text-[10px] text-muted-foreground/60 mt-1">PDF, ZIP, DOCX — max 50MB</p>
+                {selectedFile && <p className="text-[11px] mt-2 text-primary font-bold">{selectedFile.name}</p>}
+              </label>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Or paste submission link</label>
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://drive.google.com/... or github link"
+                  className="w-full h-11 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                />
               </div>
+
+              {mySubmission?.fileUrl && (
+                <a href={mySubmission.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline block">
+                  View current submission
+                </a>
+              )}
 
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                onClick={handleSubmit}
+                disabled={isSubmitting}
                 className="w-full h-12 rounded-2xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
               >
-                Submit Assignment
+                {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
               </motion.button>
             </div>
           )}

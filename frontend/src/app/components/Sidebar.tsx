@@ -51,6 +51,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const teacherItems: NavItem[] = [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/teacher/dashboard' },
       { icon: BookOpen, label: 'My Courses', path: '/teacher/courses' },
+      { icon: ClipboardList, label: 'Assignments', path: '/teacher/assignments' },
       { icon: BarChart3, label: 'Analytics', path: '/teacher/analytics' },
       { icon: MessageCircle, label: 'Chat', path: '/teacher/chat' },
     ];

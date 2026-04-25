@@ -11,7 +11,7 @@ import {
   PieChart, Pie, Cell
 } from 'recharts';
 import { useState, useEffect } from 'react';
-import { getDepartmentById, getAssignmentsByDepartment } from '../data/departments';
+import { getDepartmentById } from '../data/departments';
 import { API } from '../../api/api';
 
 const ANALYTICS_DATA = [
@@ -40,6 +40,7 @@ export function TeacherDashboard() {
   const firstName = user?.name?.split(' ')[0] || 'Teacher';
 
   const [myCourses, setMyCourses] = useState<any[]>([]);
+  const [myAssignments, setMyAssignments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -53,7 +54,7 @@ export function TeacherDashboard() {
           const data = await res.json();
           // Transform backend data to expected format if needed
           const formatted = data.map((c: any) => ({
-            id: c._id,
+            id: c.id,
             title: c.title,
             code: c.code,
             credits: 3, // mock
@@ -64,6 +65,14 @@ export function TeacherDashboard() {
           }));
           setMyCourses(formatted);
         }
+
+        const assignmentRes = await fetch(API.assignments, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (assignmentRes.ok) {
+          const assignmentData = await assignmentRes.json();
+          setMyAssignments(assignmentData);
+        }
       } catch (err) {
         console.error(err);
       } finally {
@@ -71,14 +80,14 @@ export function TeacherDashboard() {
       }
     };
     fetchCourses();
-  }, []);
+  }, [user.departmentId, JSON.stringify(user.teachingGroups || [])]);
 
   const deptId = user.departmentId || 'cse';
   const dept = getDepartmentById(deptId);
 
-  // Still use mock assignments for now until we fully integrate everything
-  const myAssignments = getAssignmentsByDepartment(deptId);
-  const pendingSubmissions = myAssignments.filter(a => a.status === 'submitted').length + 4;
+  const pendingSubmissions = myAssignments.reduce((acc: number, assignment: any) => {
+    return acc + (assignment.submissions || []).filter((s: any) => s.status === 'submitted').length;
+  }, 0);
 
   const pieData = myCourses.slice(0, 4).map(c => ({ name: c.code, value: c.progress }));
 

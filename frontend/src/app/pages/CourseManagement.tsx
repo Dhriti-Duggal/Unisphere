@@ -67,11 +67,11 @@ export function CourseManagement() {
         const data = await res.json();
         // Transform backend assignment format to frontend expected format
         const formatted = data.map((a: any) => ({
-          id: a._id,
+          id: a.id,
           title: a.title,
           dueDate: new Date(a.dueDate).toLocaleDateString(),
           submissions: a.submissions?.length || 0,
-          totalStudents: 100 // placeholder since course students length isn't fetched here yet
+          totalStudents: a.course?._count?.students || 0
         }));
         setAssignments(formatted);
       }
@@ -285,7 +285,7 @@ export function CourseManagement() {
                <div className="py-10 text-center text-sm font-bold text-muted-foreground">No live nodes scheduled yet.</div>
             ) : (
               liveClasses.map(live => (
-                <div key={live._id} className="bg-card p-6 rounded-[32px] border border-border flex flex-col md:flex-row md:items-center justify-between hover:border-primary/30 transition-all group gap-4">
+                <div key={live.id} className="bg-card p-6 rounded-[32px] border border-border flex flex-col md:flex-row md:items-center justify-between hover:border-primary/30 transition-all group gap-4">
                   <div className="flex items-center gap-6">
                     <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
                       <Radio className="w-7 h-7" />

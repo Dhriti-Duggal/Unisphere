@@ -15,6 +15,7 @@ const CoursesList = lazy(() => import("./pages/CoursesList").then(m => ({ defaul
 const CourseDetail = lazy(() => import("./pages/CourseDetail").then(m => ({ default: m.CourseDetail })));
 const Chat = lazy(() => import("./pages/Chat").then(m => ({ default: m.Chat })));
 const AssignmentList = lazy(() => import("./pages/AssignmentList").then(m => ({ default: m.AssignmentList })));
+const TeacherAssignments = lazy(() => import("./pages/TeacherAssignments").then(m => ({ default: m.TeacherAssignments })));
 const AssignmentDetail = lazy(() => import("./pages/AssignmentDetail").then(m => ({ default: m.AssignmentDetail })));
 const Analytics = lazy(() => import("./pages/Analytics").then(m => ({ default: m.Analytics })));
 const Profile = lazy(() => import("./pages/Profile").then(m => ({ default: m.Profile })));
@@ -108,7 +109,7 @@ export const router = createBrowserRouter([
           { path: "courses", element: <Suspense fallback={<Loading />}><CoursesList /></Suspense> },
           { path: "courses/:id", element: <Suspense fallback={<Loading />}><CourseDetail /></Suspense> },
           { path: "courses/:id/manage", element: <Suspense fallback={<Loading />}><CourseManagement /></Suspense> },
-          { path: "assignments", element: <Suspense fallback={<Loading />}><AssignmentList /></Suspense> },
+          { path: "assignments", element: <Suspense fallback={<Loading />}><TeacherAssignments /></Suspense> },
           { path: "assignments/:id", element: <Suspense fallback={<Loading />}><AssignmentDetail /></Suspense> },
           { path: "create-course", element: <Suspense fallback={<Loading />}><CreateCourse /></Suspense> },
           { path: "analytics", element: <Suspense fallback={<Loading />}><Analytics /></Suspense> },

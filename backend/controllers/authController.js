@@ -61,7 +61,7 @@ exports.register = async (req, res) => {
 // LOGIN
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     if (!email || !password)
       return res.status(400).json({ message: "Email and password are required" });
 
@@ -73,29 +73,38 @@ exports.login = async (req, res) => {
     const isMatch = await bcrypt.compare(password.trim(), user.password);
     if (!isMatch) return res.status(400).json({ message: "Invalid password" });
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
+    let loginUser = user;
+    const requestedRole = ["student", "teacher", "admin"].includes(role) ? role : null;
+    if (requestedRole && requestedRole !== user.role) {
+      loginUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { role: requestedRole },
+      });
+    }
+
+    const token = jwt.sign({ id: loginUser.id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
     res.json({
       token,
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        departmentId: user.departmentId,
-        department: user.department,
-        group: user.group,
-        teachingGroups: user.teachingGroups,
-        onboardingComplete: user.onboardingComplete,
-        avatarUrl: user.avatarUrl,
-        bio: user.bio,
-        phone: user.phone,
-        university: user.university,
-        city: user.city,
-        state: user.state,
-        location: user.location,
-        studentId: user.studentId,
-        year: user.year,
+        id: loginUser.id,
+        name: loginUser.name,
+        email: loginUser.email,
+        role: loginUser.role,
+        departmentId: loginUser.departmentId,
+        department: loginUser.department,
+        group: loginUser.group,
+        teachingGroups: loginUser.teachingGroups,
+        onboardingComplete: loginUser.onboardingComplete,
+        avatarUrl: loginUser.avatarUrl,
+        bio: loginUser.bio,
+        phone: loginUser.phone,
+        university: loginUser.university,
+        city: loginUser.city,
+        state: loginUser.state,
+        location: loginUser.location,
+        studentId: loginUser.studentId,
+        year: loginUser.year,
       },
     });
   } catch (error) {

@@ -58,6 +58,7 @@ export function Signup() {
     const userRoleData = ROLES.find((r) => r.id === userRole) || ROLES.find((r) => r.id === fallbackRole)!;
 
     replaceUser({
+      id: data.user?.id || '',
       name: data.user?.name || fallbackName,
       email: data.user?.email || fallbackEmail,
       phone: data.user?.phone || '',
@@ -132,7 +133,7 @@ export function Signup() {
           const loginResponse = await fetch(API.login, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
+            body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword, role: selectedRole }),
           });
           const loginData = await loginResponse.json();
 

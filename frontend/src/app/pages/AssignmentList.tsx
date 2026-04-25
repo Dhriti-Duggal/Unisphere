@@ -1,8 +1,8 @@
 import { ClipboardList, Calendar, Search, ArrowLeft } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useUser } from '../contexts/UserContext';
-import { getAssignmentsByDepartment, getCourseById, type Assignment } from '../data/departments';
+import { API } from '../../api/api';
 
 const TYPE_COLORS: Record<string, string> = {
   lab: 'from-blue-500 to-cyan-500',
@@ -22,21 +22,37 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function AssignmentList() {
   const { user } = useUser();
-  const navigate = useNavigate();
-  const deptId = user.departmentId || 'cse';
+  const [allAssignments, setAllAssignments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const rolePath = user.role === 'teacher' ? 'teacher' : 'student';
-
-  const allAssignments: Assignment[] = getAssignmentsByDepartment(deptId);
 
   const [filter, setFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(API.assignments, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAllAssignments(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchAssignments();
+  }, []);
+
   const filteredAssignments = allAssignments.filter(a => {
     const matchesFilter = filter === 'all' || a.status === filter;
-    const course = getCourseById(a.courseId);
     const matchesSearch =
-      a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (course?.code || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (a.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.course?.code || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
@@ -93,8 +109,15 @@ export function AssignmentList() {
 
       {/* List */}
       <div className="space-y-4">
+        {isLoading && (
+          <div className="text-center py-8 text-sm font-bold text-muted-foreground">Loading assignments...</div>
+        )}
         {filteredAssignments.map((assignment) => {
-          const course = getCourseById(assignment.courseId);
+          const courseCode = assignment.course?.code || 'COURSE';
+          const dueDate = assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'N/A';
+          const studentSubmission = user.role === 'student' ? assignment.submissions?.[0] : null;
+          const grade = studentSubmission?.grade;
+          const displayStatus = user.role === 'student' ? (studentSubmission?.status || assignment.status) : assignment.status;
           return (
             <Link
               key={assignment.id}
@@ -109,17 +132,16 @@ export function AssignmentList() {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1.5">
                     <h3 className="font-bold text-foreground">{assignment.title}</h3>
-                    <span className="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{course?.code}</span>
-                    <span className={`px-3 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[assignment.status] || ''}`}>
-                      {assignment.status.replace('-', ' ')}
+                    <span className="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-bold">{courseCode}</span>
+                    <span className={`px-3 py-0.5 rounded-full text-xs font-bold ${STATUS_COLORS[displayStatus] || ''}`}>
+                      {displayStatus.replace('-', ' ')}
                     </span>
                   </div>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                    <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Due {assignment.dueDate}</span>
+                    <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Due {dueDate}</span>
                     <span>• {assignment.points} pts</span>
-                    <span className="capitalize">• {assignment.type}</span>
-                    {assignment.grade !== undefined && (
-                      <span className="text-green-500 font-semibold">• Grade: {assignment.grade}/{assignment.points}</span>
+                    {grade !== undefined && grade !== null && (
+                      <span className="text-green-500 font-semibold">• Grade: {grade}/{assignment.points}</span>
                     )}
                   </div>
                 </div>

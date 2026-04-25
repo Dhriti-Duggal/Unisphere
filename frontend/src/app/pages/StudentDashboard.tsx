@@ -7,7 +7,7 @@ import {
 import { Link } from 'react-router';
 import { useUser } from '../contexts/UserContext';
 import { motion } from 'motion/react';
-import { getCoursesByDepartment, getAssignmentsByDepartment, DEPARTMENTS } from '../data/departments';
+import { DEPARTMENTS } from '../data/departments';
 import { useState, useEffect } from 'react';
 import { API } from '../../api/api';
 
@@ -71,7 +71,7 @@ export function StudentDashboard() {
 
   const deptId = user.departmentId || 'cse';
   const dept = DEPARTMENTS.find(d => d.id === deptId);
-  const upcomingDeadlines = getAssignmentsByDepartment(deptId).filter(a => a.status === 'pending' || a.status === 'in-progress').slice(0, 3);
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [liveClass, setLiveClass] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,7 +87,7 @@ export function StudentDashboard() {
         if (coursesRes.ok) {
           const coursesData = await coursesRes.json();
           const formattedCourses = coursesData.map((c: any) => ({
-            id: c._id,
+            id: c.id,
             title: c.title,
             code: c.code,
             instructor: c.teacher?.name || 'Instructor',
@@ -99,7 +99,7 @@ export function StudentDashboard() {
           // Fetch live classes for these courses
           if (coursesData.length > 0) {
             // For simplicity, just fetch live classes for the first course
-            const liveRes = await fetch(API.courseLiveClasses(coursesData[0]._id), { headers });
+            const liveRes = await fetch(API.courseLiveClasses(coursesData[0].id), { headers });
             if (liveRes.ok) {
               const liveData = await liveRes.json();
               if (liveData.length > 0) {
@@ -113,6 +113,26 @@ export function StudentDashboard() {
               }
             }
           }
+        }
+
+        const assignmentsRes = await fetch(API.assignments, { headers });
+        if (assignmentsRes.ok) {
+          const assignmentsData = await assignmentsRes.json();
+          const pending = assignmentsData
+            .filter((a: any) => {
+              const submission = a.submissions?.[0];
+              const status = submission?.status || a.status;
+              return status === 'pending' || status === 'in-progress';
+            })
+            .slice(0, 3)
+            .map((a: any) => ({
+              id: a.id,
+              title: a.title,
+              courseId: a.courseId,
+              dueDate: new Date(a.dueDate).toLocaleDateString(),
+              status: a.submissions?.[0]?.status || a.status,
+            }));
+          setUpcomingDeadlines(pending);
         }
       } catch (err) {
         console.error(err);
