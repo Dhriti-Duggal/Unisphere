@@ -7,6 +7,11 @@ export interface UserProfile {
   bio: string;
   department: string;
   departmentId: string;
+  group?: string;
+  teachingGroups?: string[];
+  university?: string;
+  city?: string;
+  state?: string;
   location: string;
   studentId: string;
   major: string;
@@ -33,6 +38,11 @@ const defaultUser: UserProfile = {
   bio: 'Computer Science student passionate about decentralized systems.',
   department: 'Computer Science & Engineering',
   departmentId: 'cse',
+  group: '',
+  teachingGroups: [],
+  university: 'Chitkara University',
+  city: '',
+  state: '',
   location: 'New York, USA',
   studentId: 'STU-2024-001',
   major: 'Software Engineering',

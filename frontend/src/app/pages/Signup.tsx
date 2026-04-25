@@ -49,6 +49,51 @@ export function Signup() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
+  const hydrateUserAndRoute = (data: any, fallbackRole: Role, fallbackName: string, fallbackEmail: string) => {
+    if (data.token) {
+      localStorage.setItem('token', data.token);
+    }
+
+    const userRole = data.user?.role || fallbackRole;
+    const userRoleData = ROLES.find((r) => r.id === userRole) || ROLES.find((r) => r.id === fallbackRole)!;
+
+    replaceUser({
+      name: data.user?.name || fallbackName,
+      email: data.user?.email || fallbackEmail,
+      phone: data.user?.phone || '',
+      bio: data.user?.bio || '',
+      department: data.user?.department || '',
+      departmentId: data.user?.departmentId || '',
+      group: data.user?.group || '',
+      teachingGroups: data.user?.teachingGroups || [],
+      university: data.user?.university || 'Chitkara University',
+      city: data.user?.city || '',
+      state: data.user?.state || '',
+      location: data.user?.location || '',
+      studentId: data.user?.studentId || '',
+      major: '',
+      year: data.user?.year || '',
+      gpa: '',
+      enrollmentDate: '',
+      role: userRole,
+      avatarColor: userRoleData.color,
+      avatarUrl: data.user?.avatarUrl || '',
+      onboardingComplete: !!data.user?.onboardingComplete,
+    });
+
+    if (userRole === 'admin') {
+      navigate('/admin/dashboard');
+      return;
+    }
+
+    if (!data.user?.onboardingComplete) {
+      navigate('/onboarding');
+      return;
+    }
+
+    navigate(userRole === 'teacher' ? '/teacher/dashboard' : '/student/dashboard');
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -74,39 +119,34 @@ export function Signup() {
           name: trimmedName,
           email: trimmedEmail,
           password: trimmedPassword,
+          role: selectedRole,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        // Common during testing: account already exists for same email.
+        // Fall back to login so token is available and onboarding/profile save can proceed.
+        if (response.status === 400 && typeof data.message === 'string' && data.message.toLowerCase().includes('already exists')) {
+          const loginResponse = await fetch(API.login, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
+          });
+          const loginData = await loginResponse.json();
+
+          if (loginResponse.ok && loginData.user) {
+            hydrateUserAndRoute(loginData, selectedRole, trimmedName, trimmedEmail);
+            return;
+          }
+        }
+
         setErrorMessage(data.message || 'Signup failed. Please try again.');
         return;
       }
 
-      replaceUser({
-        name: data.user?.name || trimmedName,
-        email: data.user?.email || trimmedEmail,
-        phone: '',
-        bio: '',
-        department: '',
-        departmentId: '',
-        location: '',
-        studentId: '',
-        major: '',
-        year: '',
-        gpa: '',
-        enrollmentDate: '',
-        role: selectedRole,
-        avatarColor: ROLES.find(r => r.id === selectedRole)?.color || 'from-primary to-accent',
-        onboardingComplete: false,
-      });
-
-      if (selectedRole === 'student' || selectedRole === 'teacher') {
-        navigate('/onboarding');
-      } else {
-        navigate('/login');
-      }
+      hydrateUserAndRoute(data, selectedRole, trimmedName, trimmedEmail);
     } catch (error) {
       setErrorMessage('Server error. Please check backend connection.');
     } finally {

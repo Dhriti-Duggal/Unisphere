@@ -9,7 +9,8 @@ exports.getMe = async (req, res) => {
         id: true, name: true, email: true, role: true,
         departmentId: true, department: true, studentId: true,
         year: true, group: true, teachingGroups: true,
-        bio: true, phone: true, location: true, avatarUrl: true,
+        bio: true, phone: true, university: true, city: true, state: true,
+        location: true, avatarUrl: true,
         onboardingComplete: true, createdAt: true,
       },
     });
@@ -27,6 +28,7 @@ exports.updateProfile = async (req, res) => {
       "name", "bio", "phone", "location", "avatarUrl",
       "departmentId", "department", "studentId", "year",
       "group", "teachingGroups", "onboardingComplete",
+      "university", "city", "state",
     ];
     const data = {};
     allowed.forEach((f) => { if (req.body[f] !== undefined) data[f] = req.body[f]; });
@@ -38,7 +40,8 @@ exports.updateProfile = async (req, res) => {
         id: true, name: true, email: true, role: true,
         departmentId: true, department: true, studentId: true,
         year: true, group: true, teachingGroups: true,
-        bio: true, phone: true, location: true, avatarUrl: true,
+        bio: true, phone: true, university: true, city: true, state: true,
+        location: true, avatarUrl: true,
         onboardingComplete: true,
       },
     });

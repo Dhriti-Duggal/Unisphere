@@ -94,25 +94,34 @@ export function Login() {
 
       localStorage.setItem('token', data.token);
 
+      const userRole = data.user.role || selectedRole;
+      const userRoleData = ROLES.find((r) => r.id === userRole) || selectedRoleData;
+
       replaceUser({
         name: data.user.name || '',
         email: data.user.email || '',
-        phone: '',
-        bio: 'Profile description',
-        department: 'Computer Science & Engineering',
-        departmentId: 'cse',
-        location: '',
-        studentId: selectedRole === 'student' ? 'STU-2024-001' : '',
-        major: selectedRole === 'student' ? 'Computer Science' : '',
-        year: selectedRole === 'student' ? '3rd Year' : '',
-        gpa: selectedRole === 'student' ? '3.5' : '',
-        enrollmentDate: selectedRole === 'student' ? 'September 2022' : '',
-        role: selectedRole,
-        avatarColor: selectedRoleData.color,
-        onboardingComplete: selectedRole !== 'student',
+        phone: data.user.phone || '',
+        bio: data.user.bio || '',
+        department: data.user.department || '',
+        departmentId: data.user.departmentId || '',
+        group: data.user.group || '',
+        teachingGroups: data.user.teachingGroups || [],
+        university: data.user.university || 'Chitkara University',
+        city: data.user.city || '',
+        state: data.user.state || '',
+        location: data.user.location || '',
+        studentId: data.user.studentId || '',
+        major: '',
+        year: data.user.year || '',
+        gpa: '',
+        enrollmentDate: '',
+        role: userRole,
+        avatarColor: userRoleData.color,
+        avatarUrl: data.user.avatarUrl || '',
+        onboardingComplete: !!data.user.onboardingComplete,
       });
 
-      navigate(selectedRoleData.path);
+      navigate(userRole === 'teacher' ? '/teacher/dashboard' : userRole === 'admin' ? '/admin/dashboard' : '/student/dashboard');
     } catch (error) {
       setErrorMessage('Server error. Please check backend connection.');
     } finally {

@@ -16,7 +16,8 @@ const protect = async (req, res, next) => {
         id: true, name: true, email: true, role: true,
         departmentId: true, department: true, studentId: true,
         year: true, group: true, teachingGroups: true,
-        bio: true, phone: true, location: true, avatarUrl: true,
+        bio: true, phone: true, university: true, city: true, state: true,
+        location: true, avatarUrl: true,
         onboardingComplete: true,
       },
     });

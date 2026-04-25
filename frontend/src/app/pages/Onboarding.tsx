@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   ArrowRight, ArrowLeft, CheckCircle2, Sparkles,
-  GraduationCap, User, BookOpen, Building2, Briefcase
+  GraduationCap, User, BookOpen, Building2, Briefcase, Users
 } from 'lucide-react';
 import { useUser } from '../contexts/UserContext';
 import { DEPARTMENTS } from '../data/departments';
+import { API } from '../../api/api';
 
 const STUDENT_YEARS = ['1st Year', '2nd Year', '3rd Year', '4th Year', 'Postgraduate'];
 const TEACHER_TITLES = ['Assistant Professor', 'Associate Professor', 'Professor', 'Lecturer', 'Visiting Faculty'];
@@ -25,6 +26,11 @@ export function Onboarding() {
   const [teachingGroups, setTeachingGroups] = useState<string[]>([]);
   const [bio, setBio] = useState('');
   const [idField, setIdField] = useState('');   // studentId or employeeId
+  const [phone, setPhone] = useState('');
+  const [university, setUniversity] = useState('Chitkara University');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const toggleTeachingGroup = (g: string) => {
@@ -34,37 +40,92 @@ export function Onboarding() {
   const selectedDept = DEPARTMENTS.find(d => d.id === selectedDeptId);
 
   const canProceedStep1 = !!selectedDeptId;
-  const canProceedStep2 = isTeacher ? teachingGroups.length > 0 : (!!year && !!group);
+  const canProceedStep2 = isTeacher
+    ? teachingGroups.length > 0
+    : (
+      !!year &&
+      !!group &&
+      !!bio.trim() &&
+      !!phone.trim() &&
+      !!university.trim() &&
+      !!city.trim() &&
+      !!state.trim() &&
+      !!avatarUrl.trim()
+    );
 
   const handleFinish = async () => {
     setIsSaving(true);
 
-    if (isTeacher) {
-      const autoId = `EMP-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-      updateUser({
-        departmentId: selectedDeptId,
-        department: selectedDept?.name || '',
-        major: selectedDept?.shortName || '',
-        year: year || 'Faculty',
-        bio: bio || `${selectedDept?.name} faculty at UniSphere.`,
-        studentId: idField.trim() || autoId,
-        teachingGroups,
-        enrollmentDate: `April ${new Date().getFullYear()}`,
-        onboardingComplete: true,
+    const onboardingPayload = isTeacher
+      ? {
+          departmentId: selectedDeptId,
+          department: selectedDept?.name || '',
+          major: selectedDept?.shortName || '',
+          year: year || 'Faculty',
+          bio: bio || `${selectedDept?.name} faculty at UniSphere.`,
+          studentId: idField.trim() || `EMP-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+          teachingGroups,
+          phone: phone.trim(),
+          university: university.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          location: [city.trim(), state.trim()].filter(Boolean).join(', '),
+          avatarUrl: avatarUrl.trim(),
+          enrollmentDate: `April ${new Date().getFullYear()}`,
+          onboardingComplete: true,
+        }
+      : {
+          departmentId: selectedDeptId,
+          department: selectedDept?.name || '',
+          major: selectedDept?.shortName || '',
+          year,
+          bio: bio.trim(),
+          studentId: idField.trim() || `STU-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+          group,
+          phone: phone.trim(),
+          university: university.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          location: [city.trim(), state.trim()].filter(Boolean).join(', '),
+          avatarUrl: avatarUrl.trim(),
+          enrollmentDate: `April ${new Date().getFullYear()}`,
+          onboardingComplete: true,
+        };
+
+    updateUser(onboardingPayload);
+
+    try {
+      const token = localStorage.getItem('token');
+      const isValidToken = !!token && token !== 'null' && token !== 'undefined';
+      if (!isValidToken) {
+        throw new Error('Authentication token missing. Please log in again.');
+      }
+
+      const response = await fetch(API.profile, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(onboardingPayload),
       });
-    } else {
-      const autoId = `STU-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-      updateUser({
-        departmentId: selectedDeptId,
-        department: selectedDept?.name || '',
-        major: selectedDept?.shortName || '',
-        year,
-        bio: bio || `${selectedDept?.name} student at UniSphere.`,
-        studentId: idField.trim() || autoId,
-        group,
-        enrollmentDate: `April ${new Date().getFullYear()}`,
-        onboardingComplete: true,
-      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          throw new Error('Session expired. Please log in again.');
+        }
+        throw new Error(errorData?.message || 'Failed to save onboarding details to database.');
+      }
+    } catch (error) {
+      setIsSaving(false);
+      const message = error instanceof Error ? error.message : 'Failed to save onboarding details.';
+      window.alert(message);
+      if (message.toLowerCase().includes('authentication token missing') || message.toLowerCase().includes('session expired')) {
+        navigate('/login');
+      }
+      return;
     }
 
     await new Promise(r => setTimeout(r, 400));
@@ -283,11 +344,70 @@ export function Onboarding() {
                   />
                 </div>
 
+                {!isTeacher && (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-foreground/80 ml-1">University <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={university}
+                          onChange={e => setUniversity(e.target.value)}
+                          placeholder="Chitkara University"
+                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-foreground/80 ml-1">Phone <span className="text-red-500">*</span></label>
+                        <input
+                          type="tel"
+                          value={phone}
+                          onChange={e => setPhone(e.target.value)}
+                          placeholder="e.g. +91 98765 43210"
+                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-foreground/80 ml-1">City <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={city}
+                          onChange={e => setCity(e.target.value)}
+                          placeholder="e.g. Chandigarh"
+                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-sm font-bold text-foreground/80 ml-1">State <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          value={state}
+                          onChange={e => setState(e.target.value)}
+                          placeholder="e.g. Punjab"
+                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-sm font-bold text-foreground/80 ml-1">Profile Image URL <span className="text-red-500">*</span></label>
+                      <input
+                        type="url"
+                        value={avatarUrl}
+                        onChange={e => setAvatarUrl(e.target.value)}
+                        placeholder="https://example.com/your-profile-image.jpg"
+                        className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                      />
+                    </div>
+                  </>
+                )}
+
                 {/* Bio */}
                 <div className="space-y-1.5">
                   <label className="text-sm font-bold text-foreground/80 ml-1 flex items-center gap-2">
                     <BookOpen className="w-4 h-4 text-primary" />
-                    Short Bio <span className="text-muted-foreground font-normal">(optional)</span>
+                    Short Bio {isTeacher ? <span className="text-muted-foreground font-normal">(optional)</span> : <span className="text-red-500">*</span>}
                   </label>
                   <textarea
                     value={bio}

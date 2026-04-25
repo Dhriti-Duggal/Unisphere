@@ -9,7 +9,7 @@ import { useUser } from '../contexts/UserContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { DEPARTMENTS as DEPT_LIST } from '../data/departments';
 import { API } from '../../api/api';
 
@@ -25,6 +25,7 @@ const AVATAR_COLORS = [
 export function Profile() {
   const { user, updateUser } = useUser();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({ ...user });
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
@@ -69,8 +70,9 @@ export function Profile() {
       updateUser(form);
 
       const token = localStorage.getItem('token');
-      if (token) {
-        await fetch(API.profile, {
+      const isValidToken = !!token && token !== 'null' && token !== 'undefined';
+      if (isValidToken) {
+        const response = await fetch(API.profile, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
@@ -80,6 +82,9 @@ export function Profile() {
             name: form.name,
             bio: form.bio,
             phone: form.phone,
+            university: form.university || '',
+            city: form.city || '',
+            state: form.state || '',
             location: form.location,
             avatarUrl: form.avatarUrl || '',
             departmentId: form.departmentId,
@@ -88,6 +93,14 @@ export function Profile() {
             year: form.year,
           }),
         });
+
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          toast.error('Session expired', { description: 'Please log in again.' });
+          setSaveStatus('idle');
+          navigate('/login');
+          return;
+        }
       }
 
       setSaveStatus('saved');
