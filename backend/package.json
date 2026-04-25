@@ -3,17 +3,28 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "start": "nodemon server.js"
+    "start": "nodemon server.js",
+    "seed": "node prisma/seed.js",
+    "db:push": "npx prisma db push",
+    "db:studio": "npx prisma studio"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@types/node": "^25.6.0",
+    "nodemon": "^3.1.14",
+    "prisma": "^7.8.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@prisma/adapter-neon": "^7.8.0",
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^9.5.0"
+    "pg": "^8.20.0"
   }
 }

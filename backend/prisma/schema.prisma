@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  student
+  teacher
+  admin
+}
+
+model User {
+  id                 String       @id @default(cuid())
+  name               String
+  email              String       @unique
+  password           String
+  role               Role         @default(student)
+  departmentId       String       @default("")
+  department         String       @default("")
+  studentId          String       @default("")
+  year               String       @default("")
+  group              String       @default("")
+  teachingGroups     String[]     @default([])
+  bio                String       @default("")
+  phone              String       @default("")
+  location           String       @default("")
+  avatarUrl          String       @default("")
+  onboardingComplete Boolean      @default(false)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  taughtCourses      Course[]     @relation("TeacherCourses")
+  enrolledCourses    CourseStudent[]
+  assignments        Assignment[]
+  liveClasses        LiveClass[]
+  submissions        Submission[]
+}
+
+model Course {
+  id           String   @id @default(cuid())
+  title        String
+  code         String
+  departmentId String   @default("")
+  category     String   @default("General")
+  description  String   @default("")
+  semester     String   @default("")
+  group        String   @default("")
+  color        String   @default("from-blue-600 to-cyan-600")
+  progress     Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacherId    String
+  teacher      User     @relation("TeacherCourses", fields: [teacherId], references: [id])
+
+  students     CourseStudent[]
+  assignments  Assignment[]
+  liveClasses  LiveClass[]
+}
+
+model CourseStudent {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  enrolledAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+}
+
+model Assignment {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  dueDate     DateTime
+  points      Int      @default(100)
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courseId    String
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  teacherId   String
+  teacher     User   @relation(fields: [teacherId], references: [id])
+
+  submissions Submission[]
+}
+
+model Submission {
+  id          String   @id @default(cuid())
+  fileUrl     String   @default("")
+  grade       Int?
+  status      String   @default("submitted")
+  submittedAt DateTime @default(now())
+
+  studentId    String
+  student      User       @relation(fields: [studentId], references: [id])
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, assignmentId])
+}
+
+model LiveClass {
+  id            String   @id @default(cuid())
+  title         String
+  groupId       String   @default("")
+  scheduledTime DateTime
+  status        String   @default("scheduled")
+  meetUrl       String   @default("")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courseId    String?
+  course      Course? @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  instructorId String
+  instructor   User   @relation(fields: [instructorId], references: [id])
+}

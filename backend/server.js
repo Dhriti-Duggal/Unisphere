@@ -1,23 +1,16 @@
 const express = require("express");
 const cors = require("cors");
-const dotenv = require("dotenv");
+require("dotenv").config();
 
-const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
 const liveClassRoutes = require("./routes/liveClassRoutes");
 
-dotenv.config();
-
-connectDB();
-
 const app = express();
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
-// Explicitly allow all origins, the Authorization header, and PATCH requests
-// so the browser preflight (OPTIONS) succeeds instead of returning 403.
 const corsOptions = {
   origin: "*",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -25,13 +18,12 @@ const corsOptions = {
   credentials: false,
 };
 
-// Handle OPTIONS preflight for every route BEFORE route handlers
-// Express 5 requires a regex for wildcard — string "*" causes a PathError
 app.options(/.*/, cors(corsOptions));
 app.use(cors(corsOptions));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true }));
 
-app.use(express.json());
-
+// ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/courses", courseRoutes);
@@ -39,10 +31,18 @@ app.use("/api/assignments", assignmentRoutes);
 app.use("/api/live-classes", liveClassRoutes);
 
 // Health check
-app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+app.get("/api/health", (req, res) =>
+  res.json({ status: "ok", db: "Neon PostgreSQL", timestamp: new Date().toISOString() })
+);
 
-const PORT = process.env.PORT || 5000;
+// 404 fallback
+app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: err.message || "Internal server error" });
 });
+
+const PORT = process.env.PORT || 5001;
+app.listen(PORT, () => console.log(`🚀 UniSphere backend running on port ${PORT} → Neon PostgreSQL`));

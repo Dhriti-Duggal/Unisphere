@@ -79,3 +79,5 @@ build-info.json
 
 # Next.js build output
 .next/
+
+/generated/prisma
