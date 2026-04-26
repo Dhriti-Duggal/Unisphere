@@ -29,9 +29,17 @@ exports.updateProfile = async (req, res) => {
       "departmentId", "department", "studentId", "year",
       "group", "teachingGroups", "onboardingComplete",
       "university", "city", "state",
+      "role",
     ];
     const data = {};
     allowed.forEach((f) => { if (req.body[f] !== undefined) data[f] = req.body[f]; });
+
+    if (data.role) {
+      const validRoles = ["student", "teacher", "admin"];
+      if (!validRoles.includes(data.role)) {
+        return res.status(400).json({ message: "Invalid role value" });
+      }
+    }
 
     const user = await prisma.user.update({
       where: { id: req.user.id },
@@ -45,6 +53,22 @@ exports.updateProfile = async (req, res) => {
         onboardingComplete: true,
       },
     });
+
+    // Debug visibility for Neon DB writes during onboarding/profile updates.
+    if (Object.keys(data).length > 0) {
+      console.log("[profile:update]", {
+        userId: req.user.id,
+        changedFields: Object.keys(data),
+        role: user.role,
+        departmentId: user.departmentId,
+        department: user.department,
+        group: user.group,
+        year: user.year,
+        studentId: user.studentId,
+        onboardingComplete: user.onboardingComplete,
+      });
+    }
+
     res.json({ message: "Profile updated successfully", user });
   } catch (error) {
     res.status(500).json({ message: error.message });

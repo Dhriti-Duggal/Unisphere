@@ -113,6 +113,14 @@ export function CoursesList() {
             </div>
           )}
         </div>
+        {user.role === 'teacher' && (
+          <Link
+            to="/teacher/create-course"
+            className="h-11 px-5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center"
+          >
+            + Create Course
+          </Link>
+        )}
       </div>
 
       {/* Search */}

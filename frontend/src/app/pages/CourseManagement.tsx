@@ -12,11 +12,13 @@ import { API } from '../../api/api';
 
 interface Resource {
   id: string;
-  type: 'video' | 'pdf' | 'note';
+  type: 'video' | 'pdf' | 'note' | 'file' | 'link';
   title: string;
   size?: string;
   duration?: string;
   date: string;
+  fileUrl?: string;
+  linkUrl?: string;
 }
 
 interface Assignment {
@@ -31,15 +33,17 @@ export function CourseManagement() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'content' | 'assignments' | 'students' | 'live'>('content');
+  const [course, setCourse] = useState<any>(null);
 
-  const [resources, setResources] = useState<Resource[]>([
-    { id: '1', type: 'video', title: '01. Course Introduction', duration: '12:45', date: '2026-04-10' },
-    { id: '2', type: 'pdf', title: 'Syllabus & Curriculum', size: '2.4 MB', date: '2026-04-11' },
-    { id: '3', type: 'note', title: 'Lecture 1: Computational Logic', date: '2026-04-12' },
-  ]);
+  const [resources, setResources] = useState<Resource[]>([]);
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploadingMaterial, setIsUploadingMaterial] = useState(false);
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialDescription, setMaterialDescription] = useState('');
+  const [materialLinkUrl, setMaterialLinkUrl] = useState('');
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
 
   // New assignment form state
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
@@ -82,15 +86,100 @@ export function CourseManagement() {
     }
   };
 
+  const fetchCourse = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.courseDetails(id!), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setCourse(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchMaterials = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.courseMaterials(id!), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const formatted: Resource[] = data.map((m: any) => ({
+        id: m.id,
+        type: m.materialType === 'file' ? 'file' : 'link',
+        title: m.title,
+        date: new Date(m.createdAt).toLocaleDateString(),
+        fileUrl: m.fileUrl || '',
+        linkUrl: m.linkUrl || '',
+      }));
+      setResources(formatted);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Fetch on mount or when tab changes
   useEffect(() => {
+    fetchCourse();
     if (activeTab === 'assignments' && isLoading) {
       fetchAssignments();
+    }
+    if (activeTab === 'content') {
+      fetchMaterials();
     }
     if (activeTab === 'live' && liveClasses.length === 0) {
       fetchLiveClasses();
     }
   }, [activeTab, isLoading]);
+
+  const handleUpload = () => {
+    setIsUploadingMaterial(true);
+  };
+
+  const handleCreateMaterial = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!materialTitle.trim()) {
+      toast.error('Material title is required.');
+      return;
+    }
+    if (!materialFile && !materialLinkUrl.trim()) {
+      toast.error('Upload a file or add a link.');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('title', materialTitle.trim());
+      formData.append('description', materialDescription.trim());
+      if (materialLinkUrl.trim()) formData.append('linkUrl', materialLinkUrl.trim());
+      if (materialFile) formData.append('file', materialFile);
+
+      const res = await fetch(API.addCourseMaterial(id!), {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to add study material');
+        return;
+      }
+      toast.success('Study material added');
+      setIsUploadingMaterial(false);
+      setMaterialTitle('');
+      setMaterialDescription('');
+      setMaterialLinkUrl('');
+      setMaterialFile(null);
+      fetchMaterials();
+    } catch (err) {
+      console.error(err);
+      toast.error('Network error while adding material');
+    }
+  };
 
   const fetchLiveClasses = async () => {
     try {
@@ -270,6 +359,46 @@ export function CourseManagement() {
                 <p className="text-xs font-black text-foreground uppercase tracking-widest">Append Asset</p>
               </button>
             </div>
+            {isUploadingMaterial && (
+              <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm mt-4">
+                <h3 className="text-base font-black text-foreground uppercase tracking-widest mb-4">Add Study Material</h3>
+                <form onSubmit={handleCreateMaterial} className="space-y-4">
+                  <input
+                    value={materialTitle}
+                    onChange={(e) => setMaterialTitle(e.target.value)}
+                    placeholder="Material title"
+                    className="w-full h-11 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold"
+                  />
+                  <textarea
+                    rows={3}
+                    value={materialDescription}
+                    onChange={(e) => setMaterialDescription(e.target.value)}
+                    placeholder="Short description (optional)"
+                    className="w-full p-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-medium resize-none"
+                  />
+                  <input
+                    type="url"
+                    value={materialLinkUrl}
+                    onChange={(e) => setMaterialLinkUrl(e.target.value)}
+                    placeholder="Material link (optional if file uploaded)"
+                    className="w-full h-11 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-medium"
+                  />
+                  <input
+                    type="file"
+                    onChange={(e) => setMaterialFile(e.target.files?.[0] || null)}
+                    className="w-full h-11 px-3 py-2 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-medium"
+                  />
+                  <div className="flex gap-3">
+                    <button type="submit" className="h-10 px-5 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest">
+                      Add Material
+                    </button>
+                    <button type="button" onClick={() => setIsUploadingMaterial(false)} className="h-10 px-5 rounded-xl bg-secondary text-foreground text-[10px] font-black uppercase tracking-widest">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -471,39 +600,40 @@ export function CourseManagement() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {enrolledStudents.map(student => (
-                  <tr key={student.id} className="hover:bg-secondary/20 transition-colors group">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-sm">
-                          {student.name[0]}
+                {(course?.students || []).map((studentRel: any) => {
+                  const student = studentRel.user || studentRel;
+                  return (
+                    <tr key={student.id} className="hover:bg-secondary/20 transition-colors group">
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-black text-sm">
+                            {student.name[0]}
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-foreground leading-none mb-1">{student.name}</p>
+                            <p className="text-xs text-muted-foreground">{student.email}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-foreground leading-none mb-1">{student.name}</p>
-                          <p className="text-xs text-muted-foreground">{student.email}</p>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-4">
+                          <div className="flex-1 h-1.5 bg-secondary rounded-full max-w-[100px] overflow-hidden">
+                            <div className="h-full bg-primary" style={{ width: `${student.progress || 0}%` }}></div>
+                          </div>
+                          <span className="text-xs font-black text-primary">{student.progress || 0}%</span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-4">
-                        <div className="flex-1 h-1.5 bg-secondary rounded-full max-w-[100px] overflow-hidden">
-                          <div className="h-full bg-primary" style={{ width: `${student.progress}%` }}></div>
-                        </div>
-                        <span className="text-xs font-black text-primary">{student.progress}%</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${
-                        student.status === 'Active' ? 'bg-green-500/10 text-green-600' : student.status === 'At Risk' ? 'bg-red-500/10 text-red-600' : 'bg-slate-500/10 text-slate-600'
-                      }`}>
-                        {student.status}
-                      </span>
-                    </td>
-                    <td className="px-8 py-6 text-right">
-                      <button className="text-[10px] font-black text-primary uppercase hover:underline">Message Node</button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-8 py-6">
+                        <span className="px-3 py-1 rounded-full text-[9px] font-black uppercase bg-green-500/10 text-green-600">
+                          Active
+                        </span>
+                      </td>
+                      <td className="px-8 py-6 text-right">
+                        <button className="text-[10px] font-black text-primary uppercase hover:underline">Message Node</button>
+                      </td>
+                    </tr>
+                  );
+                )})}
               </tbody>
             </table>
           </motion.div>

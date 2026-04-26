@@ -1,4 +1,4 @@
-import { ClipboardList, Calendar, Search, ArrowLeft } from 'lucide-react';
+import { ClipboardList, Calendar, Search, Paperclip } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { useUser } from '../contexts/UserContext';
@@ -140,6 +140,11 @@ export function AssignmentList() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> Due {dueDate}</span>
                     <span>• {assignment.points} pts</span>
+                    {assignment.attachmentUrl && (
+                      <span className="flex items-center gap-1 text-primary font-semibold">
+                        <Paperclip className="w-4 h-4" /> Attachment
+                      </span>
+                    )}
                     {grade !== undefined && grade !== null && (
                       <span className="text-green-500 font-semibold">• Grade: {grade}/{assignment.points}</span>
                     )}

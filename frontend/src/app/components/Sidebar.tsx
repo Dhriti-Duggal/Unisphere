@@ -2,6 +2,7 @@ import {
   BookOpen,
   MessageCircle,
   ClipboardList,
+  PlusCircle,
   Users,
   Building,
   BarChart3,
@@ -51,6 +52,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     const teacherItems: NavItem[] = [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/teacher/dashboard' },
       { icon: BookOpen, label: 'My Courses', path: '/teacher/courses' },
+      { icon: PlusCircle, label: 'Create Course', path: '/teacher/create-course' },
       { icon: ClipboardList, label: 'Assignments', path: '/teacher/assignments' },
       { icon: BarChart3, label: 'Analytics', path: '/teacher/analytics' },
       { icon: MessageCircle, label: 'Chat', path: '/teacher/chat' },

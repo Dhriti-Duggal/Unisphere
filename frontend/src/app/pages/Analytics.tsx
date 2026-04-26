@@ -1,7 +1,57 @@
-import { TrendingUp, Users, BookOpen, Activity, Clock } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useEffect, useMemo, useState } from 'react';
+import { TrendingUp, Users, BookOpen, Activity, Clock, ClipboardCheck } from 'lucide-react';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { API } from '../../api/api';
+import { useUser } from '../contexts/UserContext';
 
 export function Analytics() {
+  const { user } = useUser();
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(user.role === 'teacher');
+
+  useEffect(() => {
+    if (user.role !== 'teacher') return;
+    const fetchTeacherAnalytics = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(API.assignments, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setAssignments(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchTeacherAnalytics();
+  }, [user.role]);
+
+  const teacherSummary = useMemo(() => {
+    const allSubmissions = assignments.flatMap((a) =>
+      (a.submissions || []).map((s: any) => ({
+        ...s,
+        assignmentTitle: a.title,
+        courseCode: a.course?.code || 'COURSE',
+      }))
+    );
+    const submitted = allSubmissions.filter((s: any) => s.status === 'submitted');
+    const graded = allSubmissions.filter((s: any) => s.status === 'graded');
+    const pending = submitted.length;
+    const totalPoints = assignments.reduce((acc, a) => acc + (a.points || 0), 0);
+    return {
+      courses: new Set(assignments.map((a) => a.course?.id).filter(Boolean)).size,
+      assignments: assignments.length,
+      submissions: allSubmissions.length,
+      pending,
+      graded: graded.length,
+      avgPoints: assignments.length > 0 ? Math.round(totalPoints / assignments.length) : 0,
+      allSubmissions,
+    };
+  }, [assignments]);
+
   const weeklyActivity = [
     { day: 'Mon', hours: 3.5, assignments: 2 },
     { day: 'Tue', hours: 4.2, assignments: 3 },
@@ -32,6 +82,111 @@ export function Analytics() {
     { course: 'CS301', hours: 28 },
     { course: 'CS205', hours: 20 },
   ];
+
+  if (user.role === 'teacher') {
+    const submissionStatusData = [
+      { name: 'Submitted', value: teacherSummary.pending, color: '#f59e0b' },
+      { name: 'Graded', value: teacherSummary.graded, color: '#10b981' },
+    ];
+    const submissionsByCourse = assignments.map((a) => ({
+      course: a.course?.code || 'COURSE',
+      submissions: (a.submissions || []).length,
+    }));
+    const recentSubmissions = teacherSummary.allSubmissions
+      .slice()
+      .sort((a: any, b: any) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+      .slice(0, 8);
+
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-primary/5 p-8 rounded-[40px] border border-primary/10">
+          <div>
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Teacher Analytics</span>
+            <h1 className="text-4xl font-black text-foreground tracking-tight">Submission Analytics</h1>
+            <p className="text-sm font-medium text-muted-foreground mt-1">
+              Cohort-wise assignment submissions and grading pipeline.
+            </p>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center py-16 text-muted-foreground font-bold">Loading analytics...</div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+              {[
+                { label: 'Courses', value: teacherSummary.courses, icon: BookOpen },
+                { label: 'Assignments', value: teacherSummary.assignments, icon: ClipboardCheck },
+                { label: 'Total Submissions', value: teacherSummary.submissions, icon: Users },
+                { label: 'Pending Review', value: teacherSummary.pending, icon: Activity },
+                { label: 'Avg Points', value: teacherSummary.avgPoints, icon: Clock },
+              ].map((stat) => (
+                <div key={stat.label} className="bg-card rounded-[24px] p-5 border border-border">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-4">
+                    <stat.icon className="w-5 h-5" />
+                  </div>
+                  <p className="text-2xl font-black text-foreground">{stat.value}</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-card rounded-[32px] p-8 border border-border">
+                <h2 className="text-lg font-black text-foreground mb-6">Submissions by Course</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={submissionsByCourse}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                    <XAxis dataKey="course" axisLine={false} tickLine={false} />
+                    <YAxis axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Bar dataKey="submissions" fill="#1F5F5B" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="bg-card rounded-[32px] p-8 border border-border">
+                <h2 className="text-lg font-black text-foreground mb-6">Review Status</h2>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie data={submissionStatusData} dataKey="value" innerRadius={60} outerRadius={90} paddingAngle={8}>
+                      {submissionStatusData.map((entry, index) => (
+                        <Cell key={`status-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="bg-card rounded-[32px] p-6 border border-border">
+              <h2 className="text-lg font-black text-foreground mb-4">Recent Student Submissions</h2>
+              {recentSubmissions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No submissions yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {recentSubmissions.map((submission: any) => (
+                    <div key={submission.id} className="p-4 rounded-xl bg-secondary/40 border border-border flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">{submission.student?.name || 'Student'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {submission.assignmentTitle || 'Assignment'} • {submission.courseCode} • {new Date(submission.submittedAt).toLocaleString()}
+                        </p>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-xs font-bold ${submission.status === 'graded' ? 'bg-green-500/10 text-green-600' : 'bg-orange-500/10 text-orange-600'}`}>
+                        {submission.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">

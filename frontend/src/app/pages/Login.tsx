@@ -1,45 +1,9 @@
 import { Link, useNavigate } from 'react-router';
 import { useState } from 'react';
-import { GraduationCap, BookOpen, ShieldCheck, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { API } from '../../api/api';
 import { useUser } from '../contexts/UserContext';
 import { motion, AnimatePresence } from 'motion/react';
-
-type Role = 'student' | 'teacher' | 'admin';
-
-const ROLES: {
-  id: Role;
-  label: string;
-  desc: string;
-  icon: React.ElementType;
-  color: string;
-  path: string;
-}[] = [
-  {
-    id: 'student',
-    label: 'Student',
-    desc: 'Access courses & assignments',
-    icon: GraduationCap,
-    color: 'from-primary to-accent',
-    path: '/student/dashboard',
-  },
-  {
-    id: 'teacher',
-    label: 'Teacher',
-    desc: 'Manage courses & grade',
-    icon: BookOpen,
-    color: 'from-accent to-primary',
-    path: '/teacher/dashboard',
-  },
-  {
-    id: 'admin',
-    label: 'Admin',
-    desc: 'Platform administration',
-    icon: ShieldCheck,
-    color: 'from-primary/80 to-accent/80',
-    path: '/admin/dashboard',
-  },
-];
 
 export function Login() {
   const navigate = useNavigate();
@@ -48,11 +12,8 @@ export function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedRole, setSelectedRole] = useState<Role>('student');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
-
-  const selectedRoleData = ROLES.find((r) => r.id === selectedRole)!;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +38,6 @@ export function Login() {
         body: JSON.stringify({
           email: trimmedEmail,
           password: trimmedPassword,
-          role: selectedRole,
         }),
       });
 
@@ -95,8 +55,12 @@ export function Login() {
 
       localStorage.setItem('token', data.token);
 
-      const userRole = data.user.role || selectedRole;
-      const userRoleData = ROLES.find((r) => r.id === userRole) || selectedRoleData;
+      const userRole = data.user.role || 'student';
+      const userRoleData = userRole === 'teacher'
+        ? { color: 'from-accent to-primary' }
+        : userRole === 'admin'
+        ? { color: 'from-primary/80 to-accent/80' }
+        : { color: 'from-primary to-accent' };
 
       replaceUser({
         id: data.user.id || '',
@@ -123,7 +87,7 @@ export function Login() {
         onboardingComplete: !!data.user.onboardingComplete,
       });
 
-      navigate(userRole === 'teacher' ? '/teacher/dashboard' : userRole === 'admin' ? '/admin/dashboard' : '/student/dashboard');
+      navigate(data.user.onboardingComplete ? (userRole === 'teacher' ? '/teacher/dashboard' : userRole === 'admin' ? '/admin/dashboard' : '/student/dashboard') : '/onboarding');
     } catch (error) {
       setErrorMessage('Server error. Please check backend connection.');
     } finally {
@@ -197,44 +161,6 @@ export function Login() {
           </div>
 
           <form onSubmit={handleLogin} className="space-y-6">
-            {/* Role Selection */}
-            <div className="space-y-4">
-              <label className="text-sm font-semibold text-foreground/80 ml-1 mb-2 block">Sign in as</label>
-              <div className="grid grid-cols-3 gap-3">
-                {ROLES.map((role) => {
-                  const Icon = role.icon;
-                  const isSelected = selectedRole === role.id;
-                  return (
-                    <button
-                      key={role.id}
-                      type="button"
-                      onClick={() => setSelectedRole(role.id)}
-                      className={`relative flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all duration-200 ${
-                        isSelected 
-                          ? 'border-primary bg-primary/5 ring-4 ring-primary/10'
-                          : 'border-border bg-card hover:border-primary/50 hover:bg-secondary/50'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${role.color} flex items-center justify-center text-white shadow-lg`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <span className={`text-xs font-bold ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
-                        {role.label}
-                      </span>
-                      {isSelected && (
-                        <motion.div 
-                          layoutId="activeRole"
-                          className="absolute -top-2 -right-2 w-5 h-5 bg-primary text-white rounded-full flex items-center justify-center shadow-md border-2 border-background"
-                        >
-                          <CheckCircle2 className="w-3 h-3" />
-                        </motion.div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-sm font-semibold text-foreground/80 ml-1">Email address</label>
@@ -297,7 +223,7 @@ export function Login() {
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    Sign in as {selectedRoleData.label} <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                    Sign in <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                   </>
                 )}
               </span>

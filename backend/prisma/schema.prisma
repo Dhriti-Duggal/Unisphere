@@ -40,6 +40,7 @@ model User {
   assignments        Assignment[]
   liveClasses        LiveClass[]
   submissions        Submission[]
+  studyMaterials     StudyMaterial[]
 }
 
 model Course {
@@ -62,6 +63,23 @@ model Course {
   students     CourseStudent[]
   assignments  Assignment[]
   liveClasses  LiveClass[]
+  studyMaterials StudyMaterial[]
+}
+
+model StudyMaterial {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  materialType String  @default("link")
+  fileUrl     String   @default("")
+  linkUrl     String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy  User     @relation(fields: [uploadedById], references: [id])
 }
 
 model CourseStudent {
@@ -80,6 +98,9 @@ model Assignment {
   id          String   @id @default(cuid())
   title       String
   description String   @default("")
+  attachmentUrl  String   @default("")
+  attachmentName String   @default("")
+  attachmentSize Int      @default(0)
   dueDate     DateTime
   points      Int      @default(100)
   status      String   @default("pending")

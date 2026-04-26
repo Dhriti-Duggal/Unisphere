@@ -10,17 +10,53 @@ const GRADIENTS = [
 ];
 
 const randomColor = () => GRADIENTS[Math.floor(Math.random() * GRADIENTS.length)];
+const normalizeYearToken = (value = "") => {
+  const lower = String(value).trim().toLowerCase();
+  if (!lower) return "";
+  if (lower.includes("postgraduate")) return "postgraduate";
+  const digitMatch = lower.match(/\d+/);
+  return digitMatch ? digitMatch[0] : lower;
+};
+
+const isCourseYearMatch = (courseSemester = "", userYear = "") => {
+  const userToken = normalizeYearToken(userYear);
+  if (!userToken) return true;
+  const semesterLower = String(courseSemester || "").toLowerCase();
+  if (!semesterLower) return true;
+  if (userToken === "postgraduate") return semesterLower.includes("postgraduate");
+  return semesterLower.includes(userToken);
+};
+
+const canStudentAccessCourse = (course, user) => {
+  if (!course) return false;
+  if (course.departmentId && user.departmentId && course.departmentId !== user.departmentId) return false;
+  if (course.group && user.group && course.group !== user.group) return false;
+  if (!isCourseYearMatch(course.semester, user.year)) return false;
+  return true;
+};
 
 // POST /api/courses
 exports.createCourse = async (req, res) => {
   try {
-    const { title, code, category, description, semester, group } = req.body;
+    const { title, code, category, description, semester, group, studyMaterial } = req.body;
+    if (!title || !code || !semester) {
+      return res.status(400).json({ message: "Title, code and year/semester are required" });
+    }
+    if (group && Array.isArray(req.user.teachingGroups) && req.user.teachingGroups.length > 0 && !req.user.teachingGroups.includes(group)) {
+      return res.status(400).json({ message: "You can only create courses for your assigned teaching groups" });
+    }
+
+    const mergedDescription = [String(description || "").trim(), String(studyMaterial || "").trim()]
+      .filter(Boolean)
+      .join("\n\nStudy Material:\n");
+
     const course = await prisma.course.create({
       data: {
-        title, code,
+        title: String(title).trim(),
+        code: String(code).trim(),
         category: category || "General",
-        description: description || "",
-        semester: semester || "",
+        description: mergedDescription,
+        semester: String(semester || "").trim(),
         group: group || "",
         departmentId: req.user.departmentId || "",
         color: randomColor(),
@@ -37,12 +73,7 @@ exports.createCourse = async (req, res) => {
 // GET /api/courses/teacher — courses for logged-in teacher's department + groups
 exports.getTeacherCourses = async (req, res) => {
   try {
-    const { departmentId, teachingGroups } = req.user;
-    const where = { departmentId: departmentId || "" };
-
-    if (teachingGroups && teachingGroups.length > 0) {
-      where.OR = [{ group: "" }, { group: { in: teachingGroups } }];
-    }
+    const where = { teacherId: req.user.id };
 
     const courses = await prisma.course.findMany({
       where,
@@ -50,6 +81,10 @@ exports.getTeacherCourses = async (req, res) => {
         teacher: { select: { id: true, name: true, email: true, avatarUrl: true } },
         students: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, departmentId: true, year: true, group: true } } } },
         assignments: { select: { id: true, title: true, dueDate: true, status: true } },
+        studyMaterials: {
+          select: { id: true, title: true, materialType: true, fileUrl: true, linkUrl: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        },
         _count: { select: { students: true, assignments: true } },
       },
       orderBy: { createdAt: "desc" },
@@ -63,21 +98,27 @@ exports.getTeacherCourses = async (req, res) => {
 // GET /api/courses/student — dept courses filtered by student's group
 exports.getStudentCourses = async (req, res) => {
   try {
-    const { departmentId, group } = req.user;
+    const { departmentId, group, year } = req.user;
     const where = { departmentId: departmentId || "" };
 
     if (group) {
       where.OR = [{ group: "" }, { group }];
     }
 
-    const courses = await prisma.course.findMany({
+    const allCourses = await prisma.course.findMany({
       where,
       include: {
         teacher: { select: { id: true, name: true, email: true } },
+        studyMaterials: {
+          select: { id: true, title: true, materialType: true, fileUrl: true, linkUrl: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+        },
         _count: { select: { students: true } },
       },
       orderBy: { createdAt: "desc" },
     });
+
+    const courses = allCourses.filter((course) => isCourseYearMatch(course.semester, year));
     res.json(courses);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -93,6 +134,10 @@ exports.getEnrolledCourses = async (req, res) => {
         course: {
           include: {
             teacher: { select: { id: true, name: true, email: true } },
+            studyMaterials: {
+              select: { id: true, title: true, materialType: true, fileUrl: true, linkUrl: true, createdAt: true },
+              orderBy: { createdAt: "desc" },
+            },
             _count: { select: { students: true } },
           },
         },
@@ -114,10 +159,97 @@ exports.getCourseById = async (req, res) => {
         students: { include: { user: { select: { id: true, name: true, email: true, avatarUrl: true, group: true } } } },
         assignments: { orderBy: { dueDate: "asc" } },
         liveClasses: { orderBy: { scheduledTime: "asc" } },
+        studyMaterials: {
+          include: {
+            uploadedBy: { select: { id: true, name: true, email: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
       },
     });
     if (!course) return res.status(404).json({ message: "Course not found" });
+    if (req.user.role === "teacher" && course.teacherId !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Not authorized to access this course" });
+    }
+    if (req.user.role === "student" && !canStudentAccessCourse(course, req.user)) {
+      return res.status(403).json({ message: "Course is not available for your cohort" });
+    }
     res.json(course);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// GET /api/courses/:id/materials
+exports.getCourseMaterials = async (req, res) => {
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, teacherId: true, departmentId: true, group: true, semester: true },
+    });
+    if (!course) return res.status(404).json({ message: "Course not found" });
+    if (req.user.role === "teacher" && course.teacherId !== req.user.id && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Not authorized to access course materials" });
+    }
+    if (req.user.role === "student" && !canStudentAccessCourse(course, req.user)) {
+      return res.status(403).json({ message: "Materials are not available for your cohort" });
+    }
+
+    const materials = await prisma.studyMaterial.findMany({
+      where: { courseId: req.params.id },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(materials);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// POST /api/courses/:id/materials
+exports.addCourseMaterial = async (req, res) => {
+  try {
+    if (req.user.role !== "teacher" && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Only teachers can add course materials" });
+    }
+    const { title, description, linkUrl } = req.body;
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ message: "Material title is required" });
+    }
+
+    const course = await prisma.course.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, teacherId: true },
+    });
+    if (!course) return res.status(404).json({ message: "Course not found" });
+    if (req.user.role !== "admin" && course.teacherId !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized to add material to this course" });
+    }
+
+    const uploadedFileUrl = req.file ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` : "";
+    const safeLink = String(linkUrl || "").trim();
+    if (!uploadedFileUrl && !safeLink) {
+      return res.status(400).json({ message: "Upload a file or provide a link" });
+    }
+
+    const material = await prisma.studyMaterial.create({
+      data: {
+        title: String(title).trim(),
+        description: String(description || "").trim(),
+        materialType: uploadedFileUrl ? "file" : "link",
+        fileUrl: uploadedFileUrl,
+        linkUrl: uploadedFileUrl ? "" : safeLink,
+        courseId: req.params.id,
+        uploadedById: req.user.id,
+      },
+      include: {
+        uploadedBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    res.status(201).json(material);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -132,7 +264,7 @@ exports.enrollCourse = async (req, res) => {
 
     const course = await prisma.course.findUnique({
       where: { id: req.params.id },
-      select: { id: true, departmentId: true, group: true },
+      select: { id: true, departmentId: true, group: true, semester: true },
     });
 
     if (!course) {
@@ -145,6 +277,9 @@ exports.enrollCourse = async (req, res) => {
     }
     if (course.group && req.user.group && course.group !== req.user.group) {
       return res.status(400).json({ message: "Course is not available for your group" });
+    }
+    if (!isCourseYearMatch(course.semester, req.user.year)) {
+      return res.status(400).json({ message: "Course is not available for your year" });
     }
 
     const enrollment = await prisma.courseStudent.upsert({

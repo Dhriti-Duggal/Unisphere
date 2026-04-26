@@ -73,6 +73,7 @@ export function StudentDashboard() {
   const dept = DEPARTMENTS.find(d => d.id === deptId);
   const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
+  const [assignmentCountByCourse, setAssignmentCountByCourse] = useState<Record<string, number>>({});
   const [liveClass, setLiveClass] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -91,6 +92,9 @@ export function StudentDashboard() {
             title: c.title,
             code: c.code,
             instructor: c.teacher?.name || 'Instructor',
+            semester: c.semester || '',
+            group: c.group || '',
+            studyMaterial: c.description || '',
             progress: c.progress || Math.floor(Math.random() * 40) + 10,
             color: c.color || 'from-indigo-600 to-purple-600'
           }));
@@ -118,6 +122,14 @@ export function StudentDashboard() {
         const assignmentsRes = await fetch(API.assignments, { headers });
         if (assignmentsRes.ok) {
           const assignmentsData = await assignmentsRes.json();
+          const counts = assignmentsData.reduce((acc: Record<string, number>, assignment: any) => {
+            const courseId = assignment.courseId || assignment.course?.id;
+            if (!courseId) return acc;
+            acc[courseId] = (acc[courseId] || 0) + 1;
+            return acc;
+          }, {});
+          setAssignmentCountByCourse(counts);
+
           const pending = assignmentsData
             .filter((a: any) => {
               const submission = a.submissions?.[0];
@@ -243,10 +255,16 @@ export function StudentDashboard() {
                                 <div className="mb-6 relative z-10">
                                     <h3 className="text-lg font-black text-foreground leading-tight group-hover:text-primary transition-colors">{course.title}</h3>
                                     <p className="text-xs font-bold text-muted-foreground mt-1">{course.code} • {course.instructor}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-2 line-clamp-2">
+                                      {course.studyMaterial ? course.studyMaterial.split('Study Material:')[1]?.trim() || course.studyMaterial : 'Study material will be shared by your teacher soon.'}
+                                    </p>
+                                    <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-2">
+                                      {assignmentCountByCourse[course.id] || 0} Assignments in this course
+                                    </p>
                                 </div>
                                 <div className="space-y-4 relative z-10">
                                     <div className="flex items-center justify-between text-xs font-black">
-                                        <span className="text-muted-foreground uppercase tracking-widest">Mastery</span>
+                                        <span className="text-muted-foreground uppercase tracking-widest">{course.semester || 'Cohort Course'} {course.group ? `• ${course.group}` : ''}</span>
                                         <span className="text-primary">{course.progress}%</span>
                                     </div>
                                     <div className="h-1.5 bg-secondary rounded-full overflow-hidden">

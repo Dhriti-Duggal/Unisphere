@@ -1,30 +1,33 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { 
   BookOpen, Plus, Image, FileText, 
-  Settings, Save, X, Sparkles, ChevronLeft,
-  Calendar, Users, BookMarked
+  Save, Sparkles, ChevronLeft,
+  Users, GraduationCap
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
-import { motion } from 'motion/react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 import { API } from '../../api/api';
+import { useUser } from '../contexts/UserContext';
 
 export function CreateCourse() {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [formData, setFormData] = useState({
     title: '',
     code: '',
     category: 'Computer Science',
     description: '',
-    semester: 'Spring 2026',
+    semester: '',
     group: '',
+    studyMaterial: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const teacherGroups = useMemo(() => user.teachingGroups || [], [user.teachingGroups]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title || !formData.code || !formData.description) {
+    if (!formData.title || !formData.code || !formData.semester || !formData.studyMaterial.trim()) {
       toast.error('Protocol incomplete. Please populate all required parameters.');
       return;
     }
@@ -117,15 +120,18 @@ export function CreateCourse() {
                               />
                           </div>
                           <div className="space-y-2">
-                              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Academic Timeline</label>
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Target Year / Semester</label>
                               <select 
                                 value={formData.semester}
                                 onChange={(e) => setFormData({...formData, semester: e.target.value})}
                                 className="w-full h-14 px-6 rounded-2xl bg-secondary border border-transparent focus:border-primary/20 transition-all outline-none font-bold appearance-none"
                               >
-                                  <option>Spring 2026</option>
-                                  <option>Fall 2026</option>
-                                  <option>Winter 2027</option>
+                                  <option value="">Select Year</option>
+                                  <option value="Year 1">Year 1</option>
+                                  <option value="Year 2">Year 2</option>
+                                  <option value="Year 3">Year 3</option>
+                                  <option value="Year 4">Year 4</option>
+                                  <option value="Postgraduate">Postgraduate</option>
                               </select>
                           </div>
                           <div className="space-y-2 col-span-2">
@@ -136,11 +142,9 @@ export function CreateCourse() {
                                 className="w-full h-14 px-6 rounded-2xl bg-secondary border border-transparent focus:border-primary/20 transition-all outline-none font-bold appearance-none"
                               >
                                   <option value="">All Groups (Global)</option>
-                                  <option value="Group 1">Group 1</option>
-                                  <option value="Group 2">Group 2</option>
-                                  <option value="Group 3">Group 3</option>
-                                  <option value="Group 4">Group 4</option>
-                                  <option value="Group 5">Group 5</option>
+                                  {teacherGroups.map((teachingGroup) => (
+                                    <option key={teachingGroup} value={teachingGroup}>{teachingGroup}</option>
+                                  ))}
                               </select>
                           </div>
                       </div>
@@ -152,6 +156,16 @@ export function CreateCourse() {
                             placeholder="Detail the modules mission profiling and learning objectives..."
                             value={formData.description}
                             onChange={(e) => setFormData({...formData, description: e.target.value})}
+                            className="w-full p-6 rounded-3xl bg-secondary border border-transparent focus:border-primary/20 transition-all outline-none font-medium resize-none"
+                          />
+                      </div>
+                      <div className="space-y-2">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Study Material (Required)</label>
+                          <textarea 
+                            rows={6}
+                            placeholder="Paste syllabus text, weekly reading list, module links, or study notes..."
+                            value={formData.studyMaterial}
+                            onChange={(e) => setFormData({...formData, studyMaterial: e.target.value})}
                             className="w-full p-6 rounded-3xl bg-secondary border border-transparent focus:border-primary/20 transition-all outline-none font-medium resize-none"
                           />
                       </div>

@@ -11,6 +11,7 @@ export function TeacherAssignments() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
   const [form, setForm] = useState({
     courseId: '',
     title: '',
@@ -18,6 +19,7 @@ export function TeacherAssignments() {
     dueDate: '',
     points: 100,
   });
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
 
   const fetchData = async () => {
     try {
@@ -58,6 +60,11 @@ export function TeacherAssignments() {
     return courses;
   }, [courses]);
 
+  const filteredAssignments = useMemo(() => {
+    if (selectedCourseFilter === 'all') return assignments;
+    return assignments.filter((assignment) => assignment.courseId === selectedCourseFilter || assignment.course?.id === selectedCourseFilter);
+  }, [assignments, selectedCourseFilter]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.courseId || !form.title || !form.dueDate) {
@@ -75,13 +82,23 @@ export function TeacherAssignments() {
     try {
       setIsCreating(true);
       const token = localStorage.getItem('token');
+      const isMultipart = !!attachmentFile;
+      const payload = isMultipart ? new FormData() : JSON.stringify(form);
+      if (isMultipart) {
+        payload.append('courseId', form.courseId);
+        payload.append('title', form.title);
+        payload.append('description', form.description);
+        payload.append('dueDate', form.dueDate);
+        payload.append('points', String(form.points));
+        payload.append('file', attachmentFile);
+      }
       const res = await fetch(API.assignments, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          ...(isMultipart ? {} : { 'Content-Type': 'application/json' }),
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(form),
+        body: payload,
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -90,6 +107,7 @@ export function TeacherAssignments() {
       }
       toast.success('Assignment created');
       setForm({ courseId: '', title: '', description: '', dueDate: '', points: 100 });
+      setAttachmentFile(null);
       await fetchData();
     } catch (error) {
       console.error(error);
@@ -139,7 +157,7 @@ export function TeacherAssignments() {
               <option value="">Select course</option>
               {availableCourses.map((course) => (
                 <option key={course.id} value={course.id}>
-                  {course.code} - {course.title}
+                  {course.code} - {course.title} ({course.semester || 'All Years'}{course.group ? ` • ${course.group}` : ''})
                 </option>
               ))}
             </select>
@@ -179,6 +197,18 @@ export function TeacherAssignments() {
               className="w-full h-11 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary outline-none text-sm font-medium"
             />
           </div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">
+              Assignment Document (Optional)
+            </label>
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+              onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+              className="w-full h-11 px-3 py-2 rounded-xl bg-secondary/50 border border-border focus:border-primary outline-none text-sm font-medium"
+            />
+            <p className="text-[10px] text-muted-foreground">Allowed: PDF, DOC, DOCX, PPT, PPTX (max 10MB)</p>
+          </div>
           <button
             type="submit"
             disabled={isCreating}
@@ -190,14 +220,29 @@ export function TeacherAssignments() {
       </div>
 
       <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-black text-foreground uppercase tracking-widest">Assignments by Course</h3>
+          <select
+            value={selectedCourseFilter}
+            onChange={(e) => setSelectedCourseFilter(e.target.value)}
+            className="h-10 px-3 rounded-xl bg-secondary/50 border border-border focus:border-primary outline-none text-xs font-bold"
+          >
+            <option value="all">All Courses</option>
+            {availableCourses.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.code} - {course.title}
+              </option>
+            ))}
+          </select>
+        </div>
         {isLoading ? (
           <div className="text-center py-10 text-sm font-bold text-muted-foreground">Loading assignments...</div>
-        ) : assignments.length === 0 ? (
+        ) : filteredAssignments.length === 0 ? (
           <div className="text-center py-10 bg-secondary/30 rounded-3xl border border-dashed border-border text-sm font-bold text-muted-foreground">
-            No assignments created yet.
+            No assignments found for this course.
           </div>
         ) : (
-          assignments.map((assignment) => (
+          filteredAssignments.map((assignment) => (
             <Link
               key={assignment.id}
               to={`/teacher/assignments/${assignment.id}`}

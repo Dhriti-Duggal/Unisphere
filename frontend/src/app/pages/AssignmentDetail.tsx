@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Calendar, Award, ClipboardList, CheckCircle2,
-  Upload, FileText, Clock, AlertCircle, BookOpen, ChevronRight
+  Upload, FileText, Clock, AlertCircle, BookOpen, ChevronRight, Download
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useUser } from '../contexts/UserContext';
@@ -33,7 +33,6 @@ export function AssignmentDetail() {
   const [assignment, setAssignment] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [linkUrl, setLinkUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -88,8 +87,8 @@ export function AssignmentDetail() {
 
   const handleSubmit = async () => {
     if (!id) return;
-    if (!selectedFile && !linkUrl.trim()) {
-      toast.error('Upload a document or provide a link first.');
+    if (!selectedFile) {
+      toast.error('Upload a PDF/DOC/PPT file first.');
       return;
     }
     try {
@@ -97,7 +96,6 @@ export function AssignmentDetail() {
       const token = localStorage.getItem('token');
       const formData = new FormData();
       if (selectedFile) formData.append('file', selectedFile);
-      if (linkUrl.trim()) formData.append('linkUrl', linkUrl.trim());
 
       const res = await fetch(API.submitAssignment(id), {
         method: 'POST',
@@ -111,7 +109,6 @@ export function AssignmentDetail() {
       }
       toast.success('Assignment submitted successfully');
       setSelectedFile(null);
-      setLinkUrl('');
       setAssignment((prev: any) => {
         if (!prev) return prev;
         const rest = (prev.submissions || []).filter((s: any) => s.studentId !== user.id);
@@ -202,6 +199,17 @@ export function AssignmentDetail() {
             <p className="text-sm text-muted-foreground leading-relaxed font-medium">
               {assignment.description}
             </p>
+            {assignment.attachmentUrl && (
+              <a
+                href={assignment.attachmentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest hover:underline"
+              >
+                <Download className="w-4 h-4" />
+                Download Assignment File {assignment.attachmentName ? `(${assignment.attachmentName})` : ''}
+              </a>
+            )}
           </div>
 
           {/* Instructions */}
@@ -303,26 +311,16 @@ export function AssignmentDetail() {
                 <input
                   type="file"
                   className="hidden"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                   onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
                 />
                 <Upload className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2 group-hover:text-primary transition-colors" />
                 <p className="text-xs font-bold text-muted-foreground group-hover:text-foreground transition-colors">
                   Drop files here or click to upload
                 </p>
-                <p className="text-[10px] text-muted-foreground/60 mt-1">PDF, ZIP, DOCX — max 50MB</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-1">PDF, DOC, DOCX, PPT, PPTX — max 10MB</p>
                 {selectedFile && <p className="text-[11px] mt-2 text-primary font-bold">{selectedFile.name}</p>}
               </label>
-
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Or paste submission link</label>
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="https://drive.google.com/... or github link"
-                  className="w-full h-11 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
-                />
-              </div>
 
               {mySubmission?.fileUrl && (
                 <a href={mySubmission.fileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-primary hover:underline block">

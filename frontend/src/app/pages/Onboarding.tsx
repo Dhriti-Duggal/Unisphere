@@ -18,19 +18,20 @@ export function Onboarding() {
   const { user, updateUser } = useUser();
 
   const isTeacher = user.role === 'teacher';
+  const isAdmin = user.role === 'admin';
 
   const [step, setStep] = useState(1);
-  const [selectedDeptId, setSelectedDeptId] = useState('');
-  const [year, setYear] = useState('');
-  const [group, setGroup] = useState('');
-  const [teachingGroups, setTeachingGroups] = useState<string[]>([]);
-  const [bio, setBio] = useState('');
-  const [idField, setIdField] = useState('');   // studentId or employeeId
-  const [phone, setPhone] = useState('');
-  const [university, setUniversity] = useState('Chitkara University');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
+  const [selectedDeptId, setSelectedDeptId] = useState(user.departmentId || '');
+  const [year, setYear] = useState(user.year || '');
+  const [group, setGroup] = useState(user.group || '');
+  const [teachingGroups, setTeachingGroups] = useState<string[]>(user.teachingGroups || []);
+  const [bio, setBio] = useState(user.bio || '');
+  const [idField, setIdField] = useState(user.studentId || '');
+  const [phone, setPhone] = useState(user.phone || '');
+  const [university, setUniversity] = useState(user.university || 'Chitkara University');
+  const [city, setCity] = useState(user.city || '');
+  const [state, setState] = useState(user.state || '');
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   const [isSaving, setIsSaving] = useState(false);
 
   const toggleTeachingGroup = (g: string) => {
@@ -40,24 +41,18 @@ export function Onboarding() {
   const selectedDept = DEPARTMENTS.find(d => d.id === selectedDeptId);
 
   const canProceedStep1 = !!selectedDeptId;
-  const canProceedStep2 = isTeacher
-    ? teachingGroups.length > 0
-    : (
-      !!year &&
-      !!group &&
-      !!bio.trim() &&
-      !!phone.trim() &&
-      !!university.trim() &&
-      !!city.trim() &&
-      !!state.trim() &&
-      !!avatarUrl.trim()
-    );
+  const canProceedStep2 =
+    (!!phone.trim() && !!university.trim() && !!city.trim() && !!state.trim()) &&
+    (isTeacher ? teachingGroups.length > 0 : true) &&
+    (isAdmin ? true : !!year) &&
+    (isTeacher || isAdmin ? true : !!group && !!bio.trim() && !!avatarUrl.trim());
 
   const handleFinish = async () => {
     setIsSaving(true);
 
     const onboardingPayload = isTeacher
       ? {
+          role: 'teacher',
           departmentId: selectedDeptId,
           department: selectedDept?.name || '',
           major: selectedDept?.shortName || '',
@@ -74,7 +69,26 @@ export function Onboarding() {
           enrollmentDate: `April ${new Date().getFullYear()}`,
           onboardingComplete: true,
         }
+      : isAdmin
+      ? {
+          role: 'admin',
+          departmentId: selectedDeptId,
+          department: selectedDept?.name || '',
+          major: selectedDept?.shortName || '',
+          year: year || 'Administrator',
+          bio: bio.trim(),
+          studentId: idField.trim() || `ADM-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`,
+          phone: phone.trim(),
+          university: university.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          location: [city.trim(), state.trim()].filter(Boolean).join(', '),
+          avatarUrl: avatarUrl.trim(),
+          enrollmentDate: `April ${new Date().getFullYear()}`,
+          onboardingComplete: true,
+        }
       : {
+          role: 'student',
           departmentId: selectedDeptId,
           department: selectedDept?.name || '',
           major: selectedDept?.shortName || '',
@@ -118,6 +132,27 @@ export function Onboarding() {
         }
         throw new Error(errorData?.message || 'Failed to save onboarding details to database.');
       }
+
+      const saved = await response.json().catch(() => ({}));
+      if (saved?.user) {
+        updateUser({
+          role: saved.user.role || user.role,
+          departmentId: saved.user.departmentId || '',
+          department: saved.user.department || '',
+          studentId: saved.user.studentId || '',
+          year: saved.user.year || '',
+          group: saved.user.group || '',
+          teachingGroups: saved.user.teachingGroups || [],
+          bio: saved.user.bio || '',
+          phone: saved.user.phone || '',
+          university: saved.user.university || '',
+          city: saved.user.city || '',
+          state: saved.user.state || '',
+          location: saved.user.location || '',
+          avatarUrl: saved.user.avatarUrl || '',
+          onboardingComplete: !!saved.user.onboardingComplete,
+        });
+      }
     } catch (error) {
       setIsSaving(false);
       const message = error instanceof Error ? error.message : 'Failed to save onboarding details.';
@@ -130,7 +165,7 @@ export function Onboarding() {
 
     await new Promise(r => setTimeout(r, 400));
     setIsSaving(false);
-    navigate(isTeacher ? '/teacher/dashboard' : '/student/dashboard');
+    navigate(isTeacher ? '/teacher/dashboard' : isAdmin ? '/admin/dashboard' : '/student/dashboard');
   };
 
   return (
@@ -186,11 +221,13 @@ export function Onboarding() {
                   <span className="text-xs font-black text-primary uppercase tracking-widest">Step 1 of 2</span>
                 </div>
                 <h1 className="text-4xl font-black text-foreground tracking-tight leading-tight">
-                  {isTeacher ? 'Which department\ndo you teach in?' : 'Which department\nare you in?'}
+                  {isTeacher ? 'Which department\ndo you teach in?' : isAdmin ? 'Which department\nwill you manage?' : 'Which department\nare you in?'}
                 </h1>
                 <p className="text-muted-foreground mt-2 font-medium">
                   {isTeacher
                     ? 'We\'ll set up your course management and student access accordingly.'
+                    : isAdmin
+                    ? 'We\'ll configure your administration scope based on this department.'
                     : 'We\'ll personalize your courses and assignments based on this.'}
                 </p>
               </div>
@@ -250,11 +287,13 @@ export function Onboarding() {
                   <span className="text-xs font-black text-primary uppercase tracking-widest">Step 2 of 2</span>
                 </div>
                 <h1 className="text-4xl font-black text-foreground tracking-tight leading-tight">
-                  {isTeacher ? 'Your faculty\nprofile' : 'A little about\nyourself'}
+                  {isTeacher ? 'Your faculty\nprofile' : isAdmin ? 'Admin\nprofile setup' : 'A little about\nyourself'}
                 </h1>
                 <p className="text-muted-foreground mt-2 font-medium">
                   {isTeacher
                     ? 'Set up your faculty profile to manage courses and students.'
+                    : isAdmin
+                    ? 'Complete your administrator profile to continue.'
                     : 'Complete your student profile to get started.'}
                 </p>
               </div>
@@ -267,7 +306,7 @@ export function Onboarding() {
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-primary uppercase tracking-widest">
-                      {isTeacher ? 'Teaching Department' : 'Selected Department'}
+                    {isTeacher ? 'Teaching Department' : isAdmin ? 'Administration Department' : 'Selected Department'}
                     </p>
                     <p className="text-sm font-bold text-foreground">{selectedDept.name}</p>
                   </div>
@@ -282,12 +321,12 @@ export function Onboarding() {
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-foreground/80 ml-1 flex items-center gap-2">
                     {isTeacher ? <Briefcase className="w-4 h-4 text-primary" /> : <GraduationCap className="w-4 h-4 text-primary" />}
-                    {isTeacher ? 'Faculty Title' : 'Year of Study'}{' '}
-                    {!isTeacher && <span className="text-red-500">*</span>}
-                    {isTeacher && <span className="text-muted-foreground font-normal">(optional)</span>}
+                    {isTeacher ? 'Faculty Title' : isAdmin ? 'Admin Title' : 'Year of Study'}{' '}
+                    {!isTeacher && !isAdmin && <span className="text-red-500">*</span>}
+                    {(isTeacher || isAdmin) && <span className="text-muted-foreground font-normal">(optional)</span>}
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(isTeacher ? TEACHER_TITLES : STUDENT_YEARS).map(opt => (
+                    {(isTeacher ? TEACHER_TITLES : isAdmin ? ['Administrator', 'Coordinator', 'Department Admin'] : STUDENT_YEARS).map(opt => (
                       <button
                         key={opt} type="button" onClick={() => setYear(opt)}
                         className={`py-3 rounded-xl text-xs font-bold border-2 transition-all ${
@@ -302,32 +341,33 @@ export function Onboarding() {
                   </div>
                 </div>
 
-                {/* Group Selection */}
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-foreground/80 ml-1 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary" />
-                    {isTeacher ? 'Groups You Teach' : 'Your Class Group'}
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-                    {GROUPS.map(opt => {
-                      const isSelected = isTeacher ? teachingGroups.includes(opt) : group === opt;
-                      return (
-                        <button
-                          key={opt} type="button" 
-                          onClick={() => isTeacher ? toggleTeachingGroup(opt) : setGroup(opt)}
-                          className={`py-3 rounded-xl text-xs font-bold border-2 transition-all ${
-                            isSelected
-                              ? 'border-primary bg-primary text-white shadow-lg shadow-primary/20'
-                              : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                          }`}
-                        >
-                          {opt}
-                        </button>
-                      );
-                    })}
+                {!isAdmin && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-foreground/80 ml-1 flex items-center gap-2">
+                      <Users className="w-4 h-4 text-primary" />
+                      {isTeacher ? 'Groups You Teach' : 'Your Class Group'}
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                      {GROUPS.map(opt => {
+                        const isSelected = isTeacher ? teachingGroups.includes(opt) : group === opt;
+                        return (
+                          <button
+                            key={opt} type="button" 
+                            onClick={() => isTeacher ? toggleTeachingGroup(opt) : setGroup(opt)}
+                            className={`py-3 rounded-xl text-xs font-bold border-2 transition-all ${
+                              isSelected
+                                ? 'border-primary bg-primary text-white shadow-lg shadow-primary/20'
+                                : 'border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground'
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* ID field */}
                 <div className="space-y-1.5">
@@ -344,64 +384,60 @@ export function Onboarding() {
                   />
                 </div>
 
-                {!isTeacher && (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-bold text-foreground/80 ml-1">University <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          value={university}
-                          onChange={e => setUniversity(e.target.value)}
-                          placeholder="Chitkara University"
-                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-bold text-foreground/80 ml-1">Phone <span className="text-red-500">*</span></label>
-                        <input
-                          type="tel"
-                          value={phone}
-                          onChange={e => setPhone(e.target.value)}
-                          placeholder="e.g. +91 98765 43210"
-                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-bold text-foreground/80 ml-1">City <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          value={city}
-                          onChange={e => setCity(e.target.value)}
-                          placeholder="e.g. Chandigarh"
-                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-sm font-bold text-foreground/80 ml-1">State <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          value={state}
-                          onChange={e => setState(e.target.value)}
-                          placeholder="e.g. Punjab"
-                          className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-sm font-bold text-foreground/80 ml-1">Profile Image URL <span className="text-red-500">*</span></label>
-                      <input
-                        type="url"
-                        value={avatarUrl}
-                        onChange={e => setAvatarUrl(e.target.value)}
-                        placeholder="https://example.com/your-profile-image.jpg"
-                        className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
-                      />
-                    </div>
-                  </>
-                )}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-foreground/80 ml-1">University <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={university}
+                      onChange={e => setUniversity(e.target.value)}
+                      placeholder="Chitkara University"
+                      className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-foreground/80 ml-1">Phone <span className="text-red-500">*</span></label>
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-foreground/80 ml-1">City <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={e => setCity(e.target.value)}
+                      placeholder="e.g. Chandigarh"
+                      className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-bold text-foreground/80 ml-1">State <span className="text-red-500">*</span></label>
+                    <input
+                      type="text"
+                      value={state}
+                      onChange={e => setState(e.target.value)}
+                      placeholder="e.g. Punjab"
+                      className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-bold text-foreground/80 ml-1">Profile Image URL {isTeacher || isAdmin ? <span className="text-muted-foreground font-normal">(optional)</span> : <span className="text-red-500">*</span>}</label>
+                  <input
+                    type="url"
+                    value={avatarUrl}
+                    onChange={e => setAvatarUrl(e.target.value)}
+                    placeholder="https://example.com/your-profile-image.jpg"
+                    className="w-full h-12 px-4 rounded-xl bg-secondary/50 border border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none text-sm font-medium"
+                  />
+                </div>
 
                 {/* Bio */}
                 <div className="space-y-1.5">
@@ -434,7 +470,7 @@ export function Onboarding() {
                   {isSaving ? (
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
-                    <><Sparkles className="w-5 h-5" /> {isTeacher ? 'Enter Control Centre' : 'Enter UniSphere'}</>
+                    <><Sparkles className="w-5 h-5" /> {isTeacher ? 'Enter Control Centre' : isAdmin ? 'Enter Admin Centre' : 'Enter UniSphere'}</>
                   )}
                 </motion.button>
               </div>
@@ -444,7 +480,7 @@ export function Onboarding() {
 
         <p className="text-center text-xs font-medium text-muted-foreground mt-10">
           Welcome, <span className="text-foreground font-bold">{user.name}</span>!{' '}
-          {isTeacher ? '🏫 Your teaching journey starts here.' : '🎓 Your academic journey starts here.'}
+          {isTeacher ? '🏫 Your teaching journey starts here.' : isAdmin ? '🛡️ Your admin journey starts here.' : '🎓 Your academic journey starts here.'}
         </p>
       </div>
     </div>

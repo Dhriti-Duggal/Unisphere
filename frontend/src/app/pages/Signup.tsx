@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router';
 import { useState } from 'react';
-import { GraduationCap, BookOpen, ShieldCheck, Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight, UserPlus } from 'lucide-react';
+import { GraduationCap, BookOpen, ShieldCheck, Eye, EyeOff, CheckCircle2, AlertCircle, UserPlus } from 'lucide-react';
 import { API } from '../../api/api';
 import { useUser } from '../contexts/UserContext';
 import { motion, AnimatePresence } from 'motion/react';
@@ -82,17 +82,7 @@ export function Signup() {
       onboardingComplete: !!data.user?.onboardingComplete,
     });
 
-    if (userRole === 'admin') {
-      navigate('/admin/dashboard');
-      return;
-    }
-
-    if (!data.user?.onboardingComplete) {
-      navigate('/onboarding');
-      return;
-    }
-
-    navigate(userRole === 'teacher' ? '/teacher/dashboard' : '/student/dashboard');
+    navigate(data.user?.onboardingComplete ? (userRole === 'teacher' ? '/teacher/dashboard' : userRole === 'admin' ? '/admin/dashboard' : '/student/dashboard') : '/onboarding');
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -104,7 +94,19 @@ export function Signup() {
     const trimmedPassword = password.trim();
 
     if (!trimmedName || !trimmedEmail || !trimmedPassword) {
-      setErrorMessage('Please fill in all fields.');
+      setErrorMessage('Please enter name, email and password.');
+      return;
+    }
+    if (trimmedName.length < 2) {
+      setErrorMessage('Name must be at least 2 characters.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+    if (trimmedPassword.length < 8) {
+      setErrorMessage('Password must be at least 8 characters.');
       return;
     }
 
@@ -133,12 +135,12 @@ export function Signup() {
           const loginResponse = await fetch(API.login, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword, role: selectedRole }),
+            body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
           });
           const loginData = await loginResponse.json();
 
           if (loginResponse.ok && loginData.user) {
-            hydrateUserAndRoute(loginData, selectedRole, trimmedName, trimmedEmail);
+            hydrateUserAndRoute(loginData, loginData.user?.role || selectedRole, trimmedName, trimmedEmail);
             return;
           }
         }
@@ -254,6 +256,15 @@ export function Signup() {
                   );
                 })}
               </div>
+            </div>
+
+            <div className="space-y-2 rounded-2xl border border-border bg-card/40 p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-primary">What happens next</p>
+              <ul className="space-y-1 text-xs text-muted-foreground">
+                <li>- Create account with name, email and password</li>
+                <li>- Go to onboarding page to select department and add personal details</li>
+                <li>- Account is marked complete after onboarding is submitted</li>
+              </ul>
             </div>
 
             <AnimatePresence mode="wait">

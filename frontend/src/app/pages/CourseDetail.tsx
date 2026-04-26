@@ -1,22 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router";
 import {
   BookOpen, Users, FileText, FolderOpen, Bell, Play,
-  Download, ChevronRight, CheckCircle2, Lock, Video, File,
+  Download, ChevronRight, CheckCircle2, Lock, Video, File, ExternalLink,
   GraduationCap, MessageCircle, ArrowLeft, Clock
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { getCourseById, getAssignmentsByCourse } from "../data/departments";
 import { useUser } from "../contexts/UserContext";
+import { API } from "../../api/api";
 
 export function CourseDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useUser();
   const [activeTab, setActiveTab] = useState("lectures");
-
-  const course = getCourseById(Number(id));
-  const assignments = course ? getAssignmentsByCourse(course.id) : [];
+  const [course, setCourse] = useState<any>(null);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [resources, setResources] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const rolePath = user.role === 'teacher' ? 'teacher' : 'student';
 
   const lectures = [
@@ -26,11 +27,31 @@ export function CourseDetail() {
     { id: 4, title: "Advanced Topics", duration: "1:05:00", status: "locked", type: "video" },
   ];
 
-  const resources = [
-    { id: 1, title: "Course Syllabus", type: "PDF", size: "1.2 MB" },
-    { id: 2, title: "Reference Notes", type: "PDF", size: "3.4 MB" },
-    { id: 3, title: "Lab Materials.zip", type: "ARCHIVE", size: "12 MB" },
-  ];
+  useEffect(() => {
+    const fetchCourse = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const headers = { Authorization: `Bearer ${token}` };
+        const [courseRes, assignmentsRes, resourcesRes] = await Promise.all([
+          fetch(API.courseDetails(id || ""), { headers }),
+          fetch(API.courseAssignments(id || ""), { headers }),
+          fetch(API.courseMaterials(id || ""), { headers }),
+        ]);
+        if (courseRes.ok) setCourse(await courseRes.json());
+        if (assignmentsRes.ok) setAssignments(await assignmentsRes.json());
+        if (resourcesRes.ok) setResources(await resourcesRes.json());
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (id) fetchCourse();
+  }, [id]);
+
+  if (isLoading) {
+    return <div className="text-center py-20 text-muted-foreground font-bold">Loading course...</div>;
+  }
 
   if (!course) {
     return (
@@ -86,7 +107,7 @@ export function CourseDetail() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Instructor</p>
-                    <p className="text-sm font-bold text-white">{course.instructor}</p>
+                    <p className="text-sm font-bold text-white">{course.teacher?.name || 'Instructor'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -95,7 +116,7 @@ export function CourseDetail() {
                   </div>
                   <div>
                     <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Enrolled</p>
-                    <p className="text-sm font-bold text-white">{course.students} Students</p>
+                    <p className="text-sm font-bold text-white">{course.students?.length || 0} Students</p>
                   </div>
                 </div>
               </div>
@@ -155,7 +176,7 @@ export function CourseDetail() {
             <div className="mt-4 p-4 rounded-2xl bg-secondary/50 space-y-3">
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                 <span className="text-muted-foreground">Credits</span>
-                <span className="text-foreground">{course.credits}</span>
+                <span className="text-foreground">3</span>
               </div>
               <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
                 <span className="text-muted-foreground">Semester</span>
@@ -228,14 +249,13 @@ export function CourseDetail() {
                         <div>
                           <h4 className="text-lg font-black text-foreground group-hover:text-primary transition-colors">{assignment.title}</h4>
                           <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-widest">
-                            Due: <span className="text-foreground">{assignment.dueDate}</span> &nbsp;•&nbsp; {assignment.points} pts &nbsp;•&nbsp;
-                            <span className="capitalize">{assignment.type}</span>
+                            Due: <span className="text-foreground">{new Date(assignment.dueDate).toLocaleDateString()}</span> &nbsp;•&nbsp; {assignment.points} pts
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase border ${getAssignmentStatusColor(assignment.status)}`}>
-                          {assignment.status.replace('-', ' ')}
+                        <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase border ${getAssignmentStatusColor(assignment.status || 'pending')}`}>
+                          {(assignment.status || 'pending').replace('-', ' ')}
                         </span>
                         <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
@@ -253,7 +273,7 @@ export function CourseDetail() {
               {/* Resources */}
               {activeTab === 'resources' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {resources.map((res) => (
+                  {resources.map((res: any) => (
                     <div key={res.id} className="p-6 rounded-[28px] bg-card border border-border hover:border-primary transition-all flex items-center justify-between group">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
@@ -261,14 +281,26 @@ export function CourseDetail() {
                         </div>
                         <div>
                           <p className="text-sm font-bold text-foreground mb-0.5">{res.title}</p>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{res.type} • {res.size}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{res.materialType} • {new Date(res.createdAt).toLocaleDateString()}</p>
                         </div>
                       </div>
-                      <button className="w-10 h-10 rounded-xl bg-secondary text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
-                        <Download className="w-4 h-4" />
-                      </button>
+                      {res.fileUrl ? (
+                        <a href={res.fileUrl} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-xl bg-secondary text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
+                          <Download className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <a href={res.linkUrl} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-xl bg-secondary text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      )}
                     </div>
                   ))}
+                  {resources.length === 0 && (
+                    <div className="col-span-2 py-16 text-center bg-secondary/30 rounded-[32px] border border-dashed border-border">
+                      <FolderOpen className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-sm font-bold text-muted-foreground">No study material uploaded yet.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
