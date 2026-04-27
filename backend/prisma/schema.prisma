@@ -48,6 +48,7 @@ model User {
   studyMaterials     StudyMaterial[]
   chatMessages       ChatMessage[]
   chatParticipants   ChatParticipant[]
+  createdChatThreads ChatThread[]
 }
 
 model Course {
@@ -96,6 +97,7 @@ model ChatParticipant {
   threadId  String
   userId    String
   createdAt DateTime @default(now())
+  lastReadAt DateTime @default(now())
 
   thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
   user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)

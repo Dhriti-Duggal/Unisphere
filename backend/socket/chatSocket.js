@@ -81,7 +81,18 @@ const setupChatSocket = (io) => {
           data: { updatedAt: new Date() },
         });
 
+        await prisma.chatParticipant.updateMany({
+          where: { threadId, userId: socket.user.id },
+          data: { lastReadAt: new Date() },
+        });
+
         io.to(getThreadRoom(threadId)).emit("chat:message", message);
+        socket.to(getThreadRoom(threadId)).emit("chat:notification", {
+          threadId,
+          senderName: message.sender.name,
+          content: message.content,
+          createdAt: message.createdAt,
+        });
         if (ack) ack({ ok: true, message });
       } catch (error) {
         if (ack) ack({ ok: false, message: error.message || "Failed to send message" });

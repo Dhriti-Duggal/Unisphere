@@ -1,5 +1,51 @@
 const prisma = require("../lib/prisma");
 
+const syncGroupMembershipForUser = async (user) => {
+  if (!user?.id) return;
+
+  const courseWhere =
+    user.role === "teacher"
+      ? { teacherId: user.id }
+      : user.role === "student"
+      ? { students: { some: { userId: user.id } } }
+      : null;
+
+  if (!courseWhere) return;
+
+  const courses = await prisma.course.findMany({
+    where: courseWhere,
+    select: { id: true, teacherId: true, students: { select: { userId: true } } },
+  });
+
+  if (!courses.length) return;
+
+  const courseIds = courses.map((course) => course.id);
+  const groupThreads = await prisma.chatThread.findMany({
+    where: { type: "group", courseId: { in: courseIds } },
+    select: { id: true, courseId: true },
+  });
+  if (!groupThreads.length) return;
+
+  const existingMemberships = await prisma.chatParticipant.findMany({
+    where: { userId: user.id, threadId: { in: groupThreads.map((thread) => thread.id) } },
+    select: { threadId: true },
+  });
+  const existingThreadIds = new Set(existingMemberships.map((row) => row.threadId));
+
+  const threadByCourseId = new Map(groupThreads.map((thread) => [thread.courseId, thread.id]));
+  const missingThreadIds = courses
+    .map((course) => threadByCourseId.get(course.id))
+    .filter(Boolean)
+    .filter((threadId) => !existingThreadIds.has(threadId));
+
+  if (missingThreadIds.length) {
+    await prisma.chatParticipant.createMany({
+      data: missingThreadIds.map((threadId) => ({ threadId, userId: user.id })),
+      skipDuplicates: true,
+    });
+  }
+};
+
 const getUserThreadIds = async (userId) => {
   const memberships = await prisma.chatParticipant.findMany({
     where: { userId },
@@ -19,6 +65,8 @@ const canUserAccessThread = async (threadId, userId) => {
 // GET /api/chat/threads
 exports.getMyThreads = async (req, res) => {
   try {
+    await syncGroupMembershipForUser(req.user);
+
     const threadIds = await getUserThreadIds(req.user.id);
     if (!threadIds.length) return res.json([]);
 
@@ -38,7 +86,30 @@ exports.getMyThreads = async (req, res) => {
       orderBy: { updatedAt: "desc" },
     });
 
-    res.json(threads);
+    const unreadCounts = await Promise.all(
+      threads.map(async (thread) => {
+        const membership = await prisma.chatParticipant.findUnique({
+          where: { threadId_userId: { threadId: thread.id, userId: req.user.id } },
+          select: { lastReadAt: true },
+        });
+        const unreadCount = await prisma.chatMessage.count({
+          where: {
+            threadId: thread.id,
+            senderId: { not: req.user.id },
+            createdAt: { gt: membership?.lastReadAt || new Date(0) },
+          },
+        });
+        return { threadId: thread.id, unreadCount };
+      })
+    );
+
+    const unreadMap = new Map(unreadCounts.map((row) => [row.threadId, row.unreadCount]));
+    res.json(
+      threads.map((thread) => ({
+        ...thread,
+        unreadCount: unreadMap.get(thread.id) || 0,
+      }))
+    );
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -253,6 +324,27 @@ exports.postMessage = async (req, res) => {
     });
 
     res.status(201).json(message);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// PATCH /api/chat/threads/:id/read
+exports.markThreadAsRead = async (req, res) => {
+  try {
+    const threadId = req.params.id;
+    const membership = await prisma.chatParticipant.findUnique({
+      where: { threadId_userId: { threadId, userId: req.user.id } },
+      select: { id: true },
+    });
+    if (!membership) return res.status(403).json({ message: "Not authorized for this chat thread" });
+
+    await prisma.chatParticipant.update({
+      where: { threadId_userId: { threadId, userId: req.user.id } },
+      data: { lastReadAt: new Date() },
+    });
+
+    return res.json({ ok: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

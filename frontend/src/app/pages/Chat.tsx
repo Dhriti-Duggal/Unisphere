@@ -3,7 +3,8 @@ import { Search, Send, Hash, Users as UsersIcon, MessageCircle, Plus } from 'luc
 import { io, Socket } from 'socket.io-client';
 import { toast } from 'sonner';
 import { useUser } from '../contexts/UserContext';
-import { API, BASE_URL } from '../../api/api';
+import { useNotifications } from '../contexts/NotificationContext';
+import { API, SOCKET_URL } from '../../api/api';
 
 type ChatThread = {
   id: string;
@@ -13,6 +14,7 @@ type ChatThread = {
   participants: Array<{ user: { id: string; name: string; email: string; role: string; group?: string } }>;
   messages?: Array<{ content: string; createdAt: string; sender?: { name: string } }>;
   updatedAt: string;
+  unreadCount?: number;
 };
 
 type ChatMessage = {
@@ -25,6 +27,7 @@ type ChatMessage = {
 
 export function Chat() {
   const { user } = useUser();
+  const { addNotification } = useNotifications();
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -34,6 +37,7 @@ export function Chat() {
   const [courses, setCourses] = useState<any[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const selectedThreadRef = useRef<string>('');
 
   const token = localStorage.getItem('token') || '';
 
@@ -51,6 +55,10 @@ export function Chat() {
   }, [threads, search]);
 
   const selectedThread = threads.find((t) => t.id === selectedThreadId);
+
+  useEffect(() => {
+    selectedThreadRef.current = selectedThreadId;
+  }, [selectedThreadId]);
 
   const fetchThreads = async (autoSelect = true) => {
     try {
@@ -78,6 +86,11 @@ export function Chat() {
       if (!res.ok) return;
       const data = await res.json();
       setMessages(data);
+      await fetch(API.markChatThreadRead(threadId), {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setThreads((prev) => prev.map((thread) => (thread.id === threadId ? { ...thread, unreadCount: 0 } : thread)));
     } catch (error) {
       console.error(error);
     } finally {
@@ -101,21 +114,37 @@ export function Chat() {
 
   useEffect(() => {
     if (!token) return;
-    const socket = io(BASE_URL.replace('/api', ''), {
+    const socket = io(SOCKET_URL, {
       auth: { token },
       transports: ['websocket'],
     });
     socketRef.current = socket;
 
     socket.on('chat:message', (incoming: ChatMessage) => {
-      if (incoming.threadId === selectedThreadId) {
+      const isOpenThread = incoming.threadId === selectedThreadRef.current;
+      if (isOpenThread) {
         setMessages((prev) => [...prev, incoming]);
+      } else {
+        const rolePath = user.role === 'admin' ? 'admin' : user.role === 'teacher' ? 'teacher' : 'student';
+        addNotification({
+          type: 'message',
+          title: `New message from ${incoming.sender.name}`,
+          description: incoming.content,
+          time: 'Just now',
+          read: false,
+          link: `/${rolePath}/chat`,
+        });
       }
       setThreads((prev) =>
         prev
           .map((thread) =>
             thread.id === incoming.threadId
-              ? { ...thread, updatedAt: incoming.createdAt, messages: [{ content: incoming.content, createdAt: incoming.createdAt, sender: { name: incoming.sender.name } }] }
+              ? {
+                  ...thread,
+                  updatedAt: incoming.createdAt,
+                  unreadCount: isOpenThread ? 0 : (thread.unreadCount || 0) + 1,
+                  messages: [{ content: incoming.content, createdAt: incoming.createdAt, sender: { name: incoming.sender.name } }],
+                }
               : thread
           )
           .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -129,7 +158,7 @@ export function Chat() {
     return () => {
       socket.disconnect();
     };
-  }, [selectedThreadId, token]);
+  }, [token, user.role, addNotification]);
 
   useEffect(() => {
     if (selectedThreadId) fetchMessages(selectedThreadId);
@@ -294,6 +323,13 @@ export function Chat() {
               <p className="text-xs text-muted-foreground truncate mt-1">
                 {thread.messages?.[0] ? `${thread.messages[0].sender?.name || 'User'}: ${thread.messages[0].content}` : 'No messages yet'}
               </p>
+              {(thread.unreadCount || 0) > 0 && (
+                <div className="mt-2 flex justify-end">
+                  <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-black flex items-center justify-center">
+                    {(thread.unreadCount || 0) > 99 ? '99+' : thread.unreadCount}
+                  </span>
+                </div>
+              )}
             </button>
           ))}
         </div>

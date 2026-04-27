@@ -1,4 +1,8 @@
-export const BASE_URL = "http://localhost:5001/api";
+const DEFAULT_API_URL = "http://localhost:5001/api";
+const DEFAULT_SOCKET_URL = "http://localhost:5001";
+
+export const BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
+export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || DEFAULT_SOCKET_URL;
 
 export const API = {
   login:   `${BASE_URL}/auth/login`,
@@ -22,6 +26,7 @@ export const API = {
   courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`,
   chatThreads: `${BASE_URL}/chat/threads`,
   chatThreadMessages: (threadId: string) => `${BASE_URL}/chat/threads/${threadId}/messages`,
+  markChatThreadRead: (threadId: string) => `${BASE_URL}/chat/threads/${threadId}/read`,
   createOrGetGroupThread: `${BASE_URL}/chat/threads/group`,
   createOrGetDirectThread: `${BASE_URL}/chat/threads/direct`,
   liveClasses: `${BASE_URL}/live-classes`,
