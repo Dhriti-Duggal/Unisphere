@@ -60,6 +60,7 @@ export function TeacherDashboard() {
             credits: 3, // mock
             studentsCount: c.students?.length || 0,
             studentsList: c.students || [],
+            modulesCount: c.studyMaterials?.length || 0,
             progress: c.progress || Math.floor(Math.random() * 40) + 10,
             color: c.color || 'from-indigo-600 to-purple-600'
           }));
@@ -242,6 +243,7 @@ export function TeacherDashboard() {
                 <div className="mb-4 relative z-10">
                   <h3 className="text-base font-black text-foreground leading-tight group-hover:text-primary transition-colors">{course.title}</h3>
                   <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-widest">{course.code} • {course.credits} Credits</p>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">{course.modulesCount} module resources</p>
                 </div>
 
                 <div className="space-y-3 relative z-10">

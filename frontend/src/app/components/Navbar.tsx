@@ -545,9 +545,8 @@ export function Navbar() {
                 {[
                   { label: 'Dashboard', path: `/${user.role}/dashboard`, icon: '🏠' },
                   { label: 'Courses', path: `/${user.role}/courses`, icon: '📚' },
-                  ...(user.role === 'teacher' ? [{ label: 'Create Course', path: '/teacher/create-course', icon: '➕' }] : []),
                   { label: 'Chat', path: `/${user.role}/chat`, icon: '💬' },
-                  { label: 'Assignments', path: `/${user.role}/assignments`, icon: '📋' },
+                  ...(user.role !== 'teacher' ? [{ label: 'Assignments', path: `/${user.role}/assignments`, icon: '📋' }] : []),
                   { label: 'Groups', path: `/${user.role}/groups`, icon: '👥' },
                   { label: 'Analytics', path: `/${user.role}/analytics`, icon: '📊' },
                   { label: 'Profile', path: `/${user.role}/profile`, icon: '👤' },

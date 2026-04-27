@@ -2,7 +2,7 @@ import { useParams, Link, useNavigate } from 'react-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft, Calendar, Award, ClipboardList, CheckCircle2,
-  Upload, FileText, Clock, AlertCircle, BookOpen, ChevronRight, Download
+  Upload, FileText, Clock, AlertCircle, BookOpen, ChevronRight, Download, Users, Eye
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useUser } from '../contexts/UserContext';
@@ -34,6 +34,8 @@ export function AssignmentDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [gradeInputs, setGradeInputs] = useState<Record<string, string>>({});
+  const [gradingSubmissionId, setGradingSubmissionId] = useState<string>('');
 
   useEffect(() => {
     const fetchAssignment = async () => {
@@ -80,6 +82,10 @@ export function AssignmentDetail() {
   const gradient = TYPE_GRADIENTS[(assignment.type || 'project').toLowerCase()] || 'from-primary to-accent';
   const isSubmittable = user.role === 'student' && (currentStatus === 'pending' || currentStatus === 'in-progress' || currentStatus === 'submitted');
   const isGraded = currentStatus === 'graded';
+  const isTeacherView = user.role === 'teacher';
+  const allSubmissions = assignment?.submissions || [];
+  const submittedCount = allSubmissions.filter((submission: any) => submission.status === 'submitted').length;
+  const gradedCount = allSubmissions.filter((submission: any) => submission.status === 'graded').length;
 
   const daysUntilDue = Math.ceil(
     (new Date(assignment.dueDate || Date.now()).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
@@ -122,6 +128,54 @@ export function AssignmentDetail() {
     }
   };
 
+  const handleGradeSubmission = async (submissionId: string) => {
+    if (!id) return;
+    const gradeValue = gradeInputs[submissionId];
+    if (gradeValue === undefined || gradeValue === '') {
+      toast.error('Enter a grade before saving.');
+      return;
+    }
+    const parsed = Number(gradeValue);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > Number(assignment.points || 100)) {
+      toast.error(`Grade must be between 0 and ${assignment.points || 100}.`);
+      return;
+    }
+    try {
+      setGradingSubmissionId(submissionId);
+      const token = localStorage.getItem('token');
+      const res = await fetch(API.gradeSubmission(id, submissionId), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ grade: parsed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || 'Failed to save grade');
+        return;
+      }
+      setAssignment((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          submissions: (prev.submissions || []).map((submission: any) =>
+            submission.id === submissionId
+              ? { ...submission, grade: parsed, status: 'graded' }
+              : submission
+          ),
+        };
+      });
+      toast.success('Grade saved.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Network error while grading.');
+    } finally {
+      setGradingSubmissionId('');
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20">
       {/* Back */}
@@ -157,12 +211,14 @@ export function AssignmentDetail() {
 
           {/* Meta Row */}
           <div className="flex flex-wrap gap-8">
-            <div>
-              <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Due Date</p>
-              <p className="text-base font-bold text-white flex items-center gap-2">
-                <Calendar className="w-4 h-4" /> {new Date(assignment.dueDate).toLocaleDateString()}
-              </p>
-            </div>
+            {user.role === 'student' && (
+              <div>
+                <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Due Date</p>
+                <p className="text-base font-bold text-white flex items-center gap-2">
+                  <Calendar className="w-4 h-4" /> {new Date(assignment.dueDate).toLocaleDateString()}
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Points</p>
               <p className="text-base font-bold text-white flex items-center gap-2">
@@ -173,7 +229,7 @@ export function AssignmentDetail() {
               <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Instructor</p>
               <p className="text-base font-bold text-white">{course.teacher?.name || 'Instructor'}</p>
             </div>
-            {!isGraded && daysUntilDue > 0 && (
+            {!isTeacherView && !isGraded && daysUntilDue > 0 && (
               <div>
                 <p className="text-[9px] font-black text-white/60 uppercase tracking-widest">Time Left</p>
                 <p className={`text-base font-bold flex items-center gap-2 ${daysUntilDue <= 2 ? 'text-red-300 animate-pulse' : 'text-white'}`}>
@@ -238,7 +294,7 @@ export function AssignmentDetail() {
           )}
 
           {/* Graded result */}
-          {isGraded && mySubmission?.grade !== undefined && mySubmission?.grade !== null && (
+          {!isTeacherView && isGraded && mySubmission?.grade !== undefined && mySubmission?.grade !== null && (
             <div className="bg-green-500/5 border border-green-500/20 rounded-[32px] p-8">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 rounded-2xl bg-green-500 flex items-center justify-center text-white shadow-lg">
@@ -256,19 +312,98 @@ export function AssignmentDetail() {
               </div>
             </div>
           )}
+
+          {/* Teacher submission view */}
+          {isTeacherView && (
+            <div className="bg-card rounded-[32px] border border-border p-8">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-black text-foreground flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Student Submissions
+                </h2>
+                <span className="text-[10px] font-black uppercase tracking-widest text-primary">
+                  {allSubmissions.length} total
+                </span>
+              </div>
+              {allSubmissions.length === 0 ? (
+                <div className="text-sm text-muted-foreground font-bold bg-secondary/40 border border-border rounded-2xl p-5">
+                  No submissions yet for this assignment.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {allSubmissions.map((submission: any) => (
+                    <div key={submission.id} className="p-4 rounded-2xl bg-secondary/30 border border-border flex items-center justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-bold text-foreground">{submission.student?.name || 'Student'}</p>
+                        <p className="text-[11px] text-muted-foreground">{submission.student?.email || ''}</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-primary mt-1">
+                          {submission.status}
+                          {submission.grade !== null && submission.grade !== undefined ? ` • Grade ${submission.grade}/${assignment.points}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {submission.fileUrl && (
+                          <a
+                            href={submission.fileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="h-9 px-3 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest flex items-center gap-1"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            View
+                          </a>
+                        )}
+                        <input
+                          type="number"
+                          min={0}
+                          max={assignment.points}
+                          value={gradeInputs[submission.id] ?? (submission.grade ?? '')}
+                          onChange={(e) => setGradeInputs((prev) => ({ ...prev, [submission.id]: e.target.value }))}
+                          placeholder="Grade"
+                          className="h-9 w-24 px-2 rounded-xl border border-border bg-card text-xs font-bold outline-none focus:border-primary"
+                        />
+                        <button
+                          onClick={() => handleGradeSubmission(submission.id)}
+                          disabled={gradingSubmissionId === submission.id}
+                          className="h-9 px-3 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest disabled:opacity-60"
+                        >
+                          {gradingSubmissionId === submission.id ? 'Saving...' : 'Save Grade'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: Status + Submission */}
         <div className="space-y-6">
           {/* Status Card */}
           <div className="bg-card rounded-[32px] border border-border p-6">
-            <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">Status</h3>
-            <div className={`flex items-center gap-3 p-4 rounded-2xl border ${statusCfg.bg}`}>
-              <div className={`w-2.5 h-2.5 rounded-full ${statusCfg.color.replace('text-', 'bg-')}`} />
-              <span className={`text-sm font-black uppercase tracking-widest ${statusCfg.color}`}>
-                {statusCfg.label}
-              </span>
-            </div>
+            <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">
+              {isTeacherView ? 'Submission Overview' : 'Status'}
+            </h3>
+            {isTeacherView ? (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-secondary/40 border border-border">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Submitted</p>
+                  <p className="text-xl font-black text-primary mt-1">{submittedCount}</p>
+                </div>
+                <div className="p-3 rounded-xl bg-secondary/40 border border-border">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Graded</p>
+                  <p className="text-xl font-black text-foreground mt-1">{gradedCount}</p>
+                </div>
+              </div>
+            ) : (
+              <div className={`flex items-center gap-3 p-4 rounded-2xl border ${statusCfg.bg}`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${statusCfg.color.replace('text-', 'bg-')}`} />
+                <span className={`text-sm font-black uppercase tracking-widest ${statusCfg.color}`}>
+                  {statusCfg.label}
+                </span>
+              </div>
+            )}
 
             <div className="mt-4 space-y-3">
               <div className="flex justify-between text-xs font-bold">
@@ -283,12 +418,14 @@ export function AssignmentDetail() {
                 <span className="text-muted-foreground uppercase tracking-widest">Course</span>
                 <span className="text-foreground">{course.code}</span>
               </div>
-              <div className="flex justify-between text-xs font-bold">
-                <span className="text-muted-foreground uppercase tracking-widest">Due</span>
-                <span className={daysUntilDue <= 2 && !isGraded ? 'text-red-500 font-black' : 'text-foreground'}>
-                  {new Date(assignment.dueDate).toLocaleDateString()}
-                </span>
-              </div>
+              {user.role === 'student' && (
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-muted-foreground uppercase tracking-widest">Due</span>
+                  <span className={daysUntilDue <= 2 && !isGraded ? 'text-red-500 font-black' : 'text-foreground'}>
+                    {new Date(assignment.dueDate).toLocaleDateString()}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

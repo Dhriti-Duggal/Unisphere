@@ -18,6 +18,7 @@ export const API = {
   assignments: `${BASE_URL}/assignments`,
   assignmentById: (id: string) => `${BASE_URL}/assignments/${id}`,
   submitAssignment: (id: string) => `${BASE_URL}/assignments/${id}/submit`,
+  gradeSubmission: (assignmentId: string, submissionId: string) => `${BASE_URL}/assignments/${assignmentId}/submissions/${submissionId}/grade`,
   courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`,
   liveClasses: `${BASE_URL}/live-classes`,
   courseLiveClasses: (courseId: string) => `${BASE_URL}/live-classes/course/${courseId}`,

@@ -49,6 +49,11 @@ export function CoursesList() {
             instructor: c.teacher?.name || 'Instructor',
             credits: 3, // mock
             students: c.students?.length || 0,
+            studentsList: c.students || [],
+            semester: c.semester || '',
+            group: c.group || '',
+            assignmentsCount: c.assignments?.length || 0,
+            materialsCount: c.studyMaterials?.length || 0,
             progress: c.progress || Math.floor(Math.random() * 40) + 10,
             color: c.color || 'from-indigo-600 to-purple-600',
             departmentId: c.departmentId
@@ -99,7 +104,7 @@ export function CoursesList() {
   if (isLoading) return <div className="p-20 text-center font-bold text-muted-foreground">Loading courses...</div>;
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-8 pb-20 px-4 md:px-6 py-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <span className="text-[10px] font-black text-primary uppercase tracking-widest">Academic Registry</span>
@@ -114,12 +119,20 @@ export function CoursesList() {
           )}
         </div>
         {user.role === 'teacher' && (
-          <Link
-            to="/teacher/create-course"
-            className="h-11 px-5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center"
-          >
-            + Create Course
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/teacher/assignments"
+              className="h-11 px-5 rounded-xl bg-secondary border border-border text-foreground text-xs font-black uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all flex items-center justify-center"
+            >
+              Course Assignments
+            </Link>
+            <Link
+              to="/teacher/create-course"
+              className="h-11 px-5 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-widest hover:shadow-lg hover:shadow-primary/20 transition-all flex items-center justify-center"
+            >
+              + Create Course
+            </Link>
+          </div>
         )}
       </div>
 
@@ -153,7 +166,54 @@ export function CoursesList() {
         </div>
       )}
 
-      {/* Grid */}
+      {/* Teacher full-width layout */}
+      {user.role === 'teacher' ? (
+        <div className="space-y-4">
+          <div className="bg-card border border-border rounded-[28px] p-5">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+              Open any course to view enrolled students, group-wise details, and management controls.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {filteredCourses.map((course) => (
+                <div
+                  key={course.id}
+                  className="text-left bg-card rounded-[24px] border border-border p-5 transition-all hover:border-primary/40"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary">{course.code}</p>
+                      <h3 className="text-lg font-black text-foreground mt-1">{course.title}</h3>
+                    </div>
+                    <BookOpen className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="space-y-2 text-[11px] font-bold uppercase tracking-widest">
+                    <div className="flex justify-between"><span className="text-muted-foreground">Instructor</span><span>{course.instructor}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Semester</span><span>{course.semester || 'N/A'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Group</span><span>{course.group || 'All'}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Students</span><span>{course.students}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Assignments</span><span>{course.assignmentsCount}</span></div>
+                    <div className="flex justify-between"><span className="text-muted-foreground">Materials</span><span>{course.materialsCount}</span></div>
+                  </div>
+                  <div className="mt-4 flex items-center gap-2">
+                    <Link
+                      to={`/teacher/courses/${course.id}`}
+                      className="h-9 px-4 rounded-lg bg-primary text-white text-[10px] font-black uppercase tracking-widest flex items-center"
+                    >
+                      Open
+                    </Link>
+                    <Link
+                      to={`/teacher/courses/${course.id}/manage`}
+                      className="h-9 px-4 rounded-lg bg-secondary border border-border text-[10px] font-black uppercase tracking-widest flex items-center"
+                    >
+                      Manage
+                    </Link>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         <AnimatePresence mode="popLayout">
           {filteredCourses.map((course) => (
@@ -209,6 +269,7 @@ export function CoursesList() {
           ))}
         </AnimatePresence>
       </div>
+      )}
 
       {filteredCourses.length === 0 && (
         <div className="text-center py-20 bg-secondary/30 rounded-[40px] border border-dashed border-border">

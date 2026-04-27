@@ -109,7 +109,15 @@ exports.getCourseAssignments = async (req, res) => {
             _count: { select: { students: true } },
           },
         },
-        submissions: { select: { id: true, status: true, grade: true, studentId: true } },
+        submissions: {
+          select: {
+            id: true,
+            status: true,
+            grade: true,
+            studentId: true,
+            student: { select: { id: true, name: true, email: true } },
+          },
+        },
         _count: { select: { submissions: true } },
       },
       orderBy: { dueDate: "asc" },

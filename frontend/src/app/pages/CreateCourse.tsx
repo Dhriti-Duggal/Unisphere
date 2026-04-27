@@ -1,14 +1,29 @@
 import { useMemo, useState } from 'react';
 import { 
-  BookOpen, Plus, Image, FileText, 
+  BookOpen, Plus, Image, FileText,
   Save, Sparkles, ChevronLeft,
-  Users, GraduationCap
+  Users, GraduationCap, Trash2, Link as LinkIcon, MessageCircleQuestion
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 import { API } from '../../api/api';
 import { useUser } from '../contexts/UserContext';
+
+type ModuleItemType = 'link' | 'question' | 'note';
+
+interface ModuleItem {
+  id: string;
+  title: string;
+  type: ModuleItemType;
+  content: string;
+}
+
+interface CourseModule {
+  id: string;
+  title: string;
+  items: ModuleItem[];
+}
 
 export function CreateCourse() {
   const navigate = useNavigate();
@@ -24,6 +39,42 @@ export function CreateCourse() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const teacherGroups = useMemo(() => user.teachingGroups || [], [user.teachingGroups]);
+  const [modules, setModules] = useState<CourseModule[]>([
+    {
+      id: crypto.randomUUID(),
+      title: 'Module 1',
+      items: [{ id: crypto.randomUUID(), title: 'Welcome Resource', type: 'note', content: '' }],
+    },
+  ]);
+
+  const updateModule = (moduleId: string, updater: (module: CourseModule) => CourseModule) => {
+    setModules(prev => prev.map(m => (m.id === moduleId ? updater(m) : m)));
+  };
+
+  const addModule = () => {
+    setModules(prev => [
+      ...prev,
+      { id: crypto.randomUUID(), title: `Module ${prev.length + 1}`, items: [{ id: crypto.randomUUID(), title: '', type: 'link', content: '' }] },
+    ]);
+  };
+
+  const removeModule = (moduleId: string) => {
+    setModules(prev => prev.filter(m => m.id !== moduleId));
+  };
+
+  const addModuleItem = (moduleId: string) => {
+    updateModule(moduleId, (module) => ({
+      ...module,
+      items: [...module.items, { id: crypto.randomUUID(), title: '', type: 'link', content: '' }],
+    }));
+  };
+
+  const removeModuleItem = (moduleId: string, itemId: string) => {
+    updateModule(moduleId, (module) => ({
+      ...module,
+      items: module.items.filter(i => i.id !== itemId),
+    }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,8 +96,44 @@ export function CreateCourse() {
       });
 
       if (res.ok) {
+        const createdCourse = await res.json();
+        const flattened = modules.flatMap((module, moduleIndex) =>
+          module.items
+            .filter(item => item.title.trim() && item.content.trim())
+            .map((item, itemIndex) => ({
+              title: item.title.trim(),
+              content: item.content.trim(),
+              type: item.type,
+              moduleTitle: module.title.trim() || `Module ${moduleIndex + 1}`,
+              section: itemIndex + 1,
+            }))
+        );
+
+        if (flattened.length > 0) {
+          await Promise.all(
+            flattened.map((item) =>
+              fetch(API.addCourseMaterial(createdCourse.id), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({
+                  title: `${item.moduleTitle}: ${item.title}`,
+                  materialType: item.type === 'link' ? 'link' : 'note',
+                  linkUrl: item.type === 'link' ? item.content : '',
+                  description: JSON.stringify({
+                    module: item.moduleTitle,
+                    sectionTitle: item.title,
+                    section: item.section,
+                    type: item.type,
+                    content: item.content,
+                  }),
+                }),
+              })
+            )
+          );
+        }
+
         toast.success('Academic module initialized and deployed to registry.');
-        navigate('/teacher/dashboard');
+        navigate('/teacher/courses');
       } else {
         const errData = await res.json();
         toast.error(errData.message || 'Failed to initialize module.');
@@ -169,6 +256,96 @@ export function CreateCourse() {
                             className="w-full p-6 rounded-3xl bg-secondary border border-transparent focus:border-primary/20 transition-all outline-none font-medium resize-none"
                           />
                       </div>
+                      <div className="space-y-4 pt-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">
+                            Course Modules & Sections
+                          </label>
+                          <button
+                            type="button"
+                            onClick={addModule}
+                            className="h-8 px-3 rounded-lg bg-secondary text-foreground text-[10px] font-black uppercase tracking-widest flex items-center gap-1"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Module
+                          </button>
+                        </div>
+                        <div className="space-y-4">
+                          {modules.map((module, moduleIdx) => (
+                            <div key={module.id} className="rounded-3xl border border-border bg-secondary/40 p-4 space-y-3">
+                              <div className="flex items-center gap-3">
+                                <input
+                                  value={module.title}
+                                  onChange={(e) => updateModule(module.id, prev => ({ ...prev, title: e.target.value }))}
+                                  placeholder={`Module ${moduleIdx + 1} title`}
+                                  className="flex-1 h-11 px-4 rounded-xl bg-card border border-transparent focus:border-primary/20 outline-none text-sm font-bold"
+                                />
+                                {modules.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeModule(module.id)}
+                                    className="w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center text-muted-foreground hover:text-red-500"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                              <div className="space-y-3">
+                                {module.items.map((item) => (
+                                  <div key={item.id} className="rounded-2xl bg-card border border-border p-3 space-y-2">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                      <input
+                                        value={item.title}
+                                        onChange={(e) => updateModule(module.id, prev => ({
+                                          ...prev,
+                                          items: prev.items.map(i => (i.id === item.id ? { ...i, title: e.target.value } : i)),
+                                        }))}
+                                        placeholder="Section title"
+                                        className="h-10 px-3 rounded-lg bg-secondary/60 border border-transparent focus:border-primary/20 outline-none text-xs font-bold"
+                                      />
+                                      <select
+                                        value={item.type}
+                                        onChange={(e) => updateModule(module.id, prev => ({
+                                          ...prev,
+                                          items: prev.items.map(i => (i.id === item.id ? { ...i, type: e.target.value as ModuleItemType, content: '' } : i)),
+                                        }))}
+                                        className="h-10 px-3 rounded-lg bg-secondary/60 border border-transparent focus:border-primary/20 outline-none text-xs font-bold"
+                                      >
+                                        <option value="link">Material Link</option>
+                                        <option value="question">Question / Prompt</option>
+                                        <option value="note">Module Note</option>
+                                      </select>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeModuleItem(module.id, item.id)}
+                                        className="h-10 rounded-lg bg-secondary/60 border border-transparent text-xs font-black uppercase tracking-widest text-muted-foreground hover:text-red-500"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                    <textarea
+                                      rows={2}
+                                      value={item.content}
+                                      onChange={(e) => updateModule(module.id, prev => ({
+                                        ...prev,
+                                        items: prev.items.map(i => (i.id === item.id ? { ...i, content: e.target.value } : i)),
+                                      }))}
+                                      placeholder={item.type === 'link' ? 'https://resource-link.com' : item.type === 'question' ? 'Write question or activity prompt' : 'Add notes/content for this section'}
+                                      className="w-full p-3 rounded-lg bg-secondary/60 border border-transparent focus:border-primary/20 outline-none text-xs font-medium resize-none"
+                                    />
+                                  </div>
+                                ))}
+                                <button
+                                  type="button"
+                                  onClick={() => addModuleItem(module.id)}
+                                  className="h-9 px-3 rounded-lg bg-card border border-border text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-1"
+                                >
+                                  <Plus className="w-3.5 h-3.5" /> Add Section
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                   </div>
               </div>
 
@@ -181,8 +358,8 @@ export function CreateCourse() {
                   <div className="grid grid-cols-2 gap-4">
                       {[
                           { label: 'Public Enrollment', icon: Users, desc: 'Allow any student to synchronize' },
-                          { label: 'Auto-Certification', icon: GraduationCap, desc: 'Issue certificates on mastery' },
-                          { label: 'Live Sessions', icon: BookOpen, desc: 'Include virtual instruction nodes' },
+                          { label: 'Module Resources', icon: LinkIcon, desc: 'Attach links per module section' },
+                          { label: 'Question Bank', icon: MessageCircleQuestion, desc: 'Add prompts for each module' },
                           { label: 'Archival Support', icon: Save, desc: 'Enable resource state saving' },
                       ].map((feat, i) => (
                           <div key={i} className="p-6 rounded-3xl bg-secondary/50 border border-transparent hover:border-border transition-all flex items-start gap-4 group cursor-pointer">

@@ -27,6 +27,7 @@ interface Assignment {
   dueDate: string;
   submissions: number;
   totalStudents: number;
+  submittedStudents: { id: string; name: string; email: string }[];
 }
 
 export function CourseManagement() {
@@ -44,15 +45,6 @@ export function CourseManagement() {
   const [materialDescription, setMaterialDescription] = useState('');
   const [materialLinkUrl, setMaterialLinkUrl] = useState('');
   const [materialFile, setMaterialFile] = useState<File | null>(null);
-
-  // New assignment form state
-  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
-  const [newAssignment, setNewAssignment] = useState({
-    title: '',
-    description: '',
-    dueDate: '',
-    points: 100
-  });
 
   const [liveClasses, setLiveClasses] = useState<any[]>([]);
   const [isSchedulingLive, setIsSchedulingLive] = useState(false);
@@ -75,7 +67,11 @@ export function CourseManagement() {
           title: a.title,
           dueDate: new Date(a.dueDate).toLocaleDateString(),
           submissions: a.submissions?.length || 0,
-          totalStudents: a.course?._count?.students || 0
+          totalStudents: a.course?._count?.students || 0,
+          submittedStudents: (a.submissions || [])
+            .filter((submission: any) => submission.status === 'submitted' || submission.status === 'graded')
+            .map((submission: any) => submission.student)
+            .filter(Boolean),
         }));
         setAssignments(formatted);
       }
@@ -231,42 +227,6 @@ export function CourseManagement() {
     }
   };
 
-  const handleCreateAssignment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAssignment.title || !newAssignment.dueDate) {
-      toast.error("Please fill in required fields (Title, Due Date)");
-      return;
-    }
-    try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(API.assignments, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          ...newAssignment,
-          courseId: id
-        })
-      });
-
-      if (res.ok) {
-        toast.success("Assignment successfully generated!");
-        setIsCreatingAssignment(false);
-        setNewAssignment({ title: '', description: '', dueDate: '', points: 100 });
-        setIsLoading(true); // force refetch
-        fetchAssignments();
-      } else {
-        const errData = await res.json();
-        toast.error(errData.message || "Failed to create assignment");
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Network error creating assignment");
-    }
-  };
-
   return (
     <div className="space-y-8 pb-20">
       {/* Header Context */}
@@ -301,7 +261,7 @@ export function CourseManagement() {
         {[
           { id: 'content', label: 'Knowledge Assets', icon: FileText },
           { id: 'live', label: 'Live Nodes', icon: Radio },
-          { id: 'assignments', label: 'Evaluation Tasks', icon: Calendar },
+          { id: 'assignments', label: 'Assignments', icon: Calendar },
           { id: 'students', label: 'Learner Nodes', icon: Users },
         ].map(tab => (
           <button
@@ -490,82 +450,63 @@ export function CourseManagement() {
           >
             {isLoading ? (
               <div className="py-10 text-center text-sm font-bold text-muted-foreground">Syncing Evaluation Protocols...</div>
-            ) : assignments.length === 0 && !isCreatingAssignment ? (
+            ) : assignments.length === 0 ? (
                <div className="py-10 text-center text-sm font-bold text-muted-foreground">No evaluation tasks exist yet.</div>
             ) : (
               assignments.map(assign => (
-                <div key={assign.id} className="bg-card p-6 rounded-[32px] border border-border flex flex-col md:flex-row md:items-center justify-between hover:border-primary/30 transition-all group gap-4">
-                  <div className="flex items-center gap-6">
-                    <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
-                      <Calendar className="w-7 h-7" />
+                <div key={assign.id}>
+                  <div className="bg-card p-6 rounded-[32px] border border-border flex flex-col md:flex-row md:items-center justify-between hover:border-primary/30 transition-all group gap-4">
+                    <div className="flex items-center gap-6">
+                      <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
+                        <Calendar className="w-7 h-7" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">{assign.title}</h3>
+                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest italic">
+                          {assign.submittedStudents.length} students submitted
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-black text-foreground group-hover:text-primary transition-colors leading-none mb-1">{assign.title}</h3>
-                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest italic">Deadline: {assign.dueDate}</p>
+                    <div className="flex items-center gap-8 md:gap-12">
+                      <div className="text-right">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase">Compliance Rate</p>
+                          <p className="text-sm font-black text-primary italic">{Math.round((assign.submissions / assign.totalStudents) * 100)}% ({assign.submissions}/{assign.totalStudents})</p>
+                      </div>
+                      <button className="h-11 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap">Audit Submissions</button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-8 md:gap-12">
-                     <div className="text-right">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase">Compliance Rate</p>
-                        <p className="text-sm font-black text-primary italic">{Math.round((assign.submissions / assign.totalStudents) * 100)}% ({assign.submissions}/{assign.totalStudents})</p>
-                     </div>
-                     <button className="h-11 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest hover:shadow-lg transition-all whitespace-nowrap">Audit Submissions</button>
-                  </div>
+                  {assign.submittedStudents.length > 0 && (
+                    <div className="mt-3 ml-20 flex flex-wrap gap-2">
+                      {assign.submittedStudents.slice(0, 6).map(student => (
+                        <span
+                          key={`${assign.id}-${student.id}`}
+                          className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-primary/10 text-primary"
+                        >
+                          {student.name}
+                        </span>
+                      ))}
+                      {assign.submittedStudents.length > 6 && (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-secondary text-muted-foreground">
+                          +{assign.submittedStudents.length - 6} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))
             )}
-            
-            {isCreatingAssignment ? (
-              <div className="bg-card p-6 rounded-[32px] border border-border shadow-sm mt-6">
-                <h3 className="text-base font-black text-foreground uppercase tracking-widest mb-4">New Evaluation Protocol</h3>
-                <form onSubmit={handleCreateAssignment} className="space-y-4">
-                  <div>
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Title</label>
-                    <input 
-                      type="text" 
-                      required
-                      value={newAssignment.title}
-                      onChange={e => setNewAssignment({...newAssignment, title: e.target.value})}
-                      className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
-                      placeholder="e.g. Midterm Report"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Due Date</label>
-                      <input 
-                        type="date" 
-                        required
-                        value={newAssignment.dueDate}
-                        onChange={e => setNewAssignment({...newAssignment, dueDate: e.target.value})}
-                        className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Points</label>
-                      <input 
-                        type="number" 
-                        value={newAssignment.points}
-                        onChange={e => setNewAssignment({...newAssignment, points: Number(e.target.value)})}
-                        className="w-full h-12 px-4 rounded-xl bg-secondary border border-transparent focus:border-primary/20 outline-none text-sm font-bold" 
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 pt-4">
-                    <button type="submit" className="h-10 px-6 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest">Deploy Task</button>
-                    <button type="button" onClick={() => setIsCreatingAssignment(false)} className="h-10 px-6 rounded-xl bg-secondary text-foreground text-[10px] font-black uppercase tracking-widest">Cancel</button>
-                  </div>
-                </form>
+            <div className="w-full rounded-[24px] border border-border bg-secondary/20 p-4 mt-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black text-foreground uppercase tracking-widest">Single Assignment Flow</p>
+                <p className="text-[11px] text-muted-foreground mt-1">Create assignments from the dedicated Create Assignment page.</p>
               </div>
-            ) : (
-              <button 
-                onClick={() => setIsCreatingAssignment(true)}
-                className="w-full h-20 rounded-[32px] border-2 border-dashed border-border flex items-center justify-center gap-3 text-muted-foreground hover:bg-primary/5 hover:border-primary/50 hover:text-primary transition-all mt-4"
+              <Link
+                to="/teacher/assignments"
+                className="h-10 px-4 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest flex items-center"
               >
-                <Plus className="w-5 h-5" />
-                <span className="text-xs font-black uppercase tracking-widest">Generate New Evaluation Protocol</span>
-              </button>
-            )}
+                Go to Create Assignment
+              </Link>
+            </div>
           </motion.div>
         )}
 
@@ -633,7 +574,7 @@ export function CourseManagement() {
                       </td>
                     </tr>
                   );
-                )})}
+                })}
               </tbody>
             </table>
           </motion.div>

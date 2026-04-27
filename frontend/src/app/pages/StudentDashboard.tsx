@@ -95,6 +95,8 @@ export function StudentDashboard() {
             semester: c.semester || '',
             group: c.group || '',
             studyMaterial: c.description || '',
+            modulesCount: c.studyMaterials?.length || 0,
+            latestMaterials: (c.studyMaterials || []).slice(0, 2).map((m: any) => m.title),
             progress: c.progress || Math.floor(Math.random() * 40) + 10,
             color: c.color || 'from-indigo-600 to-purple-600'
           }));
@@ -256,10 +258,12 @@ export function StudentDashboard() {
                                     <h3 className="text-lg font-black text-foreground leading-tight group-hover:text-primary transition-colors">{course.title}</h3>
                                     <p className="text-xs font-bold text-muted-foreground mt-1">{course.code} • {course.instructor}</p>
                                     <p className="text-[11px] text-muted-foreground mt-2 line-clamp-2">
-                                      {course.studyMaterial ? course.studyMaterial.split('Study Material:')[1]?.trim() || course.studyMaterial : 'Study material will be shared by your teacher soon.'}
+                                      {course.latestMaterials?.length
+                                        ? `Latest modules: ${course.latestMaterials.join(' • ')}`
+                                        : (course.studyMaterial ? course.studyMaterial.split('Study Material:')[1]?.trim() || course.studyMaterial : 'Study material will be shared by your teacher soon.')}
                                     </p>
                                     <p className="text-[10px] font-black text-primary uppercase tracking-widest mt-2">
-                                      {assignmentCountByCourse[course.id] || 0} Assignments in this course
+                                      {assignmentCountByCourse[course.id] || 0} Assignments • {course.modulesCount || 0} module items
                                     </p>
                                 </div>
                                 <div className="space-y-4 relative z-10">

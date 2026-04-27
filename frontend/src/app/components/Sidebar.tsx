@@ -28,6 +28,7 @@ interface NavItem {
   icon: React.ElementType;
   label: string;
   path: string;
+  children?: NavItem[];
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -51,9 +52,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
     const teacherItems: NavItem[] = [
       { icon: LayoutDashboard, label: 'Dashboard', path: '/teacher/dashboard' },
-      { icon: BookOpen, label: 'My Courses', path: '/teacher/courses' },
-      { icon: PlusCircle, label: 'Create Course', path: '/teacher/create-course' },
-      { icon: ClipboardList, label: 'Assignments', path: '/teacher/assignments' },
+      {
+        icon: BookOpen,
+        label: 'Courses',
+        path: '/teacher/courses',
+        children: [
+          { icon: PlusCircle, label: 'Create Course', path: '/teacher/create-course' },
+          { icon: ClipboardList, label: 'Create Assignment', path: '/teacher/assignments' },
+        ],
+      },
       { icon: BarChart3, label: 'Analytics', path: '/teacher/analytics' },
       { icon: MessageCircle, label: 'Chat', path: '/teacher/chat' },
     ];
@@ -107,19 +114,42 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               const Icon = item.icon;
               const active = isActive(item.path);
               return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  title={collapsed ? item.label : undefined}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-0.5 group ${
-                    active
-                      ? 'bg-primary text-white shadow-md shadow-primary/20'
-                      : 'text-foreground/70 hover:bg-secondary hover:text-foreground'
-                  } ${collapsed ? 'justify-center' : ''}`}
-                >
-                  <Icon className={`w-5 h-5 flex-shrink-0 transition-transform ${active ? '' : 'group-hover:scale-110'}`} />
-                  {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
-                </Link>
+                <div key={item.path} className="space-y-1">
+                  <Link
+                    to={item.path}
+                    title={collapsed ? item.label : undefined}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-0.5 group ${
+                      active
+                        ? 'bg-primary text-white shadow-md shadow-primary/20'
+                        : 'text-foreground/70 hover:bg-secondary hover:text-foreground'
+                    } ${collapsed ? 'justify-center' : ''}`}
+                  >
+                    <Icon className={`w-5 h-5 flex-shrink-0 transition-transform ${active ? '' : 'group-hover:scale-110'}`} />
+                    {!collapsed && <span className="text-sm font-medium">{item.label}</span>}
+                  </Link>
+                  {!collapsed && item.children && (
+                    <div className="ml-4 pl-3 border-l border-border/70 space-y-1">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const childActive = location.pathname === child.path || location.pathname.startsWith(`${child.path}/`);
+                        return (
+                          <Link
+                            key={child.path}
+                            to={child.path}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-xs font-semibold ${
+                              childActive
+                                ? 'bg-primary/10 text-primary'
+                                : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                            }`}
+                          >
+                            <ChildIcon className="w-3.5 h-3.5 flex-shrink-0" />
+                            <span>{child.label}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               );
             })}
           </div>

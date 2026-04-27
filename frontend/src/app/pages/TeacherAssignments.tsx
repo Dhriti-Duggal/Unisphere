@@ -252,7 +252,7 @@ export function TeacherAssignments() {
                 <div>
                   <p className="text-sm font-black text-foreground">{assignment.title}</p>
                   <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-widest">
-                    {assignment.course?.code || 'COURSE'} • Due {new Date(assignment.dueDate).toLocaleDateString()}
+                    {assignment.course?.code || 'COURSE'} • {assignment.points || 100} points
                   </p>
                 </div>
                 <div className="text-right">

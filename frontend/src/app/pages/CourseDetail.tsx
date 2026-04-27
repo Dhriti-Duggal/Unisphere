@@ -79,6 +79,26 @@ export function CourseDetail() {
     }
   };
 
+  const groupedModuleResources = resources.reduce((acc: Record<string, any[]>, resource: any) => {
+    let parsedMeta: any = null;
+    try {
+      parsedMeta = resource.description ? JSON.parse(resource.description) : null;
+    } catch {
+      parsedMeta = null;
+    }
+    const moduleName = parsedMeta?.module || 'General';
+    if (!acc[moduleName]) acc[moduleName] = [];
+    acc[moduleName].push({ ...resource, parsedMeta });
+    return acc;
+  }, {});
+
+  const enrolledStudents = (course?.students || []).map((studentRel: any) => studentRel.user || studentRel);
+  const groupWiseCounts = enrolledStudents.reduce((acc: Record<string, number>, student: any) => {
+    const key = student.group || 'Ungrouped';
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
     <div className="space-y-8 pb-20">
       {/* Back */}
@@ -143,12 +163,13 @@ export function CourseDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Sidebar Tabs */}
-        <div className="lg:col-span-3">
-          <div className="bg-card rounded-[32px] p-4 border border-border shadow-sm sticky top-24">
+        <div className="lg:col-span-4 space-y-4">
+          <div className="bg-card rounded-[32px] p-4 border border-border shadow-sm sticky top-24 space-y-4">
             <div className="space-y-1">
               {[
                 { id: 'lectures', label: 'Lectures', icon: Video },
                 { id: 'assignments', label: 'Assignments', icon: FileText },
+                { id: 'students', label: 'Enrolled Students', icon: Users },
                 { id: 'resources', label: 'Resources', icon: FolderOpen },
                 { id: 'announcements', label: 'Announcements', icon: Bell },
               ].map(tab => (
@@ -191,7 +212,7 @@ export function CourseDetail() {
         </div>
 
         {/* Content Pane */}
-        <div className="lg:col-span-9">
+        <div className="lg:col-span-8">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -249,14 +270,25 @@ export function CourseDetail() {
                         <div>
                           <h4 className="text-lg font-black text-foreground group-hover:text-primary transition-colors">{assignment.title}</h4>
                           <p className="text-xs font-bold text-muted-foreground mt-1 uppercase tracking-widest">
-                            Due: <span className="text-foreground">{new Date(assignment.dueDate).toLocaleDateString()}</span> &nbsp;•&nbsp; {assignment.points} pts
+                            {user.role === 'teacher'
+                              ? `${assignment.submissions?.filter((s: any) => s.status === 'submitted').length || 0} Submitted • ${assignment.submissions?.filter((s: any) => s.status === 'graded').length || 0} Graded`
+                              : <>Due: <span className="text-foreground">{new Date(assignment.dueDate).toLocaleDateString()}</span> &nbsp;•&nbsp; {assignment.points} pts</>
+                            }
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase border ${getAssignmentStatusColor(assignment.status || 'pending')}`}>
-                          {(assignment.status || 'pending').replace('-', ' ')}
-                        </span>
+                        {user.role === 'teacher' ? (
+                          <span className="px-3 py-1.5 rounded-full text-[10px] font-black uppercase border bg-primary/10 text-primary border-primary/20">
+                            {course.students?.length
+                              ? `${Math.round(((assignment.submissions?.length || 0) / course.students.length) * 100)}% Submission`
+                              : 'No enrollments'}
+                          </span>
+                        ) : (
+                          <span className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase border ${getAssignmentStatusColor(assignment.status || 'pending')}`}>
+                            {(assignment.status || 'pending').replace('-', ' ')}
+                          </span>
+                        )}
                         <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
                       </div>
                     </Link>
@@ -272,27 +304,38 @@ export function CourseDetail() {
 
               {/* Resources */}
               {activeTab === 'resources' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {resources.map((res: any) => (
-                    <div key={res.id} className="p-6 rounded-[28px] bg-card border border-border hover:border-primary transition-all flex items-center justify-between group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                          <File className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-foreground mb-0.5">{res.title}</p>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{res.materialType} • {new Date(res.createdAt).toLocaleDateString()}</p>
-                        </div>
+                <div className="space-y-5">
+                  {Object.entries(groupedModuleResources).map(([moduleName, moduleResources]) => (
+                    <div key={moduleName} className="rounded-[28px] bg-card border border-border p-5">
+                      <h3 className="text-sm font-black text-foreground uppercase tracking-widest mb-4">{moduleName}</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {moduleResources.map((res: any) => (
+                          <div key={res.id} className="p-5 rounded-2xl bg-secondary/30 border border-border hover:border-primary transition-all flex items-center justify-between group">
+                            <div className="flex items-center gap-4">
+                              <div className="w-11 h-11 rounded-xl bg-card flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                                <File className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-foreground mb-0.5">{res.parsedMeta?.sectionTitle || res.title}</p>
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                  {(res.parsedMeta?.type || res.materialType)} • {new Date(res.createdAt).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            {res.fileUrl ? (
+                              <a href={res.fileUrl} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-xl bg-card text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
+                                <Download className="w-4 h-4" />
+                              </a>
+                            ) : res.linkUrl ? (
+                              <a href={res.linkUrl} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-xl bg-card text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
+                                <ExternalLink className="w-4 h-4" />
+                              </a>
+                            ) : (
+                              <div className="px-2 py-1 rounded-lg text-[10px] font-bold bg-primary/10 text-primary">Text</div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      {res.fileUrl ? (
-                        <a href={res.fileUrl} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-xl bg-secondary text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
-                          <Download className="w-4 h-4" />
-                        </a>
-                      ) : (
-                        <a href={res.linkUrl} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-xl bg-secondary text-muted-foreground hover:text-primary transition-all flex items-center justify-center">
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
-                      )}
                     </div>
                   ))}
                   {resources.length === 0 && (
@@ -301,6 +344,40 @@ export function CourseDetail() {
                       <p className="text-sm font-bold text-muted-foreground">No study material uploaded yet.</p>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Enrolled Students */}
+              {activeTab === 'students' && (
+                <div className="rounded-[28px] bg-card border border-border p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-black text-foreground uppercase tracking-widest">Enrolled Students</h3>
+                    <span className="text-[10px] font-black text-primary uppercase tracking-widest">
+                      {enrolledStudents.length} total
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {Object.entries(groupWiseCounts).map(([group, count]) => (
+                      <span key={group} className="px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary">
+                        {group}: {count}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {enrolledStudents.length === 0 ? (
+                      <p className="text-xs font-bold text-muted-foreground">No students enrolled yet.</p>
+                    ) : (
+                      enrolledStudents.map((student: any) => (
+                        <div key={student.id} className="p-3 rounded-xl bg-secondary/30 border border-border">
+                          <p className="text-sm font-bold text-foreground">{student.name}</p>
+                          <p className="text-[11px] text-muted-foreground">{student.email}</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-primary mt-1">
+                            {student.group || 'Ungrouped'}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               )}
 

@@ -214,7 +214,7 @@ exports.addCourseMaterial = async (req, res) => {
     if (req.user.role !== "teacher" && req.user.role !== "admin") {
       return res.status(403).json({ message: "Only teachers can add course materials" });
     }
-    const { title, description, linkUrl } = req.body;
+    const { title, description, linkUrl, materialType } = req.body;
     if (!title || !String(title).trim()) {
       return res.status(400).json({ message: "Material title is required" });
     }
@@ -230,15 +230,19 @@ exports.addCourseMaterial = async (req, res) => {
 
     const uploadedFileUrl = req.file ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` : "";
     const safeLink = String(linkUrl || "").trim();
-    if (!uploadedFileUrl && !safeLink) {
-      return res.status(400).json({ message: "Upload a file or provide a link" });
+    const safeDescription = String(description || "").trim();
+    const normalizedType = String(materialType || "").trim().toLowerCase();
+    const allowsTextOnly = normalizedType === "note" || normalizedType === "question";
+    if (!uploadedFileUrl && !safeLink && !allowsTextOnly) {
+      return res.status(400).json({ message: "Upload a file, provide a link, or set material type to note/question" });
     }
+    const resolvedMaterialType = uploadedFileUrl ? "file" : safeLink ? "link" : normalizedType || "note";
 
     const material = await prisma.studyMaterial.create({
       data: {
         title: String(title).trim(),
-        description: String(description || "").trim(),
-        materialType: uploadedFileUrl ? "file" : "link",
+        description: safeDescription,
+        materialType: resolvedMaterialType,
         fileUrl: uploadedFileUrl,
         linkUrl: uploadedFileUrl ? "" : safeLink,
         courseId: req.params.id,
