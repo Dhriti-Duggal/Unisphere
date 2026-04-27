@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
 require("dotenv").config();
 
 const authRoutes = require("./routes/authRoutes");
@@ -8,8 +9,12 @@ const userRoutes = require("./routes/userRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
 const liveClassRoutes = require("./routes/liveClassRoutes");
+const chatRoutes = require("./routes/chatRoutes");
+const { Server } = require("socket.io");
+const { setupChatSocket } = require("./socket/chatSocket");
 
 const app = express();
+const httpServer = http.createServer(app);
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const corsOptions = {
@@ -31,6 +36,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/courses", courseRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/live-classes", liveClassRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Health check
 app.get("/api/health", (req, res) =>
@@ -47,4 +53,13 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5001;
-app.listen(PORT, () => console.log(`🚀 UniSphere backend running on port ${PORT} → Neon PostgreSQL`));
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: false,
+  },
+});
+setupChatSocket(io);
+
+httpServer.listen(PORT, () => console.log(`🚀 UniSphere backend running on port ${PORT} → Neon PostgreSQL`));

@@ -12,6 +12,11 @@ enum Role {
   admin
 }
 
+enum ChatThreadType {
+  direct
+  group
+}
+
 model User {
   id                 String       @id @default(cuid())
   name               String
@@ -41,6 +46,8 @@ model User {
   liveClasses        LiveClass[]
   submissions        Submission[]
   studyMaterials     StudyMaterial[]
+  chatMessages       ChatMessage[]
+  chatParticipants   ChatParticipant[]
 }
 
 model Course {
@@ -64,6 +71,50 @@ model Course {
   assignments  Assignment[]
   liveClasses  LiveClass[]
   studyMaterials StudyMaterial[]
+  chatThreads   ChatThread[]
+}
+
+model ChatThread {
+  id          String         @id @default(cuid())
+  type        ChatThreadType
+  title       String         @default("")
+  courseId    String?
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  course        Course?           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdBy     User              @relation(fields: [createdById], references: [id])
+  participants  ChatParticipant[]
+  messages      ChatMessage[]
+
+  @@index([courseId])
+}
+
+model ChatParticipant {
+  id        String   @id @default(cuid())
+  threadId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  threadId   String
+  senderId   String
+  content    String
+  createdAt  DateTime @default(now())
+
+  thread ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User       @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([threadId, createdAt])
 }
 
 model StudyMaterial {

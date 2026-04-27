@@ -20,6 +20,10 @@ export const API = {
   submitAssignment: (id: string) => `${BASE_URL}/assignments/${id}/submit`,
   gradeSubmission: (assignmentId: string, submissionId: string) => `${BASE_URL}/assignments/${assignmentId}/submissions/${submissionId}/grade`,
   courseAssignments: (courseId: string) => `${BASE_URL}/assignments/course/${courseId}`,
+  chatThreads: `${BASE_URL}/chat/threads`,
+  chatThreadMessages: (threadId: string) => `${BASE_URL}/chat/threads/${threadId}/messages`,
+  createOrGetGroupThread: `${BASE_URL}/chat/threads/group`,
+  createOrGetDirectThread: `${BASE_URL}/chat/threads/direct`,
   liveClasses: `${BASE_URL}/live-classes`,
   courseLiveClasses: (courseId: string) => `${BASE_URL}/live-classes/course/${courseId}`,
   groupLiveClasses: (groupId: string) => `${BASE_URL}/live-classes/group/${groupId}`
