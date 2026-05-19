@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { deleteCloudinaryAsset } = require("../lib/cloudinaryHelper");
 
 // GET /api/users/me
 exports.getMe = async (req, res) => {
@@ -75,6 +76,43 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+// PATCH /api/users/avatar — upload avatar image to Cloudinary
+exports.uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image file provided. Use field name 'avatar'." });
+    }
+
+    // ── Delete old avatar from Cloudinary first to prevent storage leaks ──────
+    const existing = await prisma.user.findUnique({
+      where:  { id: req.user.id },
+      select: { avatarPublicId: true },
+    });
+    if (existing?.avatarPublicId) {
+      await deleteCloudinaryAsset(existing.avatarPublicId, "image");
+    }
+
+    // multer-storage-cloudinary sets:
+    //   req.file.path     = Cloudinary secure_url
+    //   req.file.filename = Cloudinary public_id
+    const avatarUrl      = req.file.path;
+    const avatarPublicId = req.file.filename;
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data:  { avatarUrl, avatarPublicId },
+      select: {
+        id: true, name: true, email: true, role: true,
+        avatarUrl: true,
+      },
+    });
+
+    res.json({ message: "Avatar uploaded successfully", avatarUrl: user.avatarUrl, user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // GET /api/users — Admin only
 exports.getAllUsers = async (req, res) => {
   try {
@@ -98,7 +136,7 @@ exports.updateUserStatus = async (req, res) => {
     const { role } = req.body;
     const user = await prisma.user.update({
       where: { id: req.params.id },
-      data: role ? { role } : {},
+      data:  role ? { role } : {},
       select: { id: true, name: true, email: true, role: true },
     });
     res.json({ message: `User updated`, user });
@@ -110,9 +148,40 @@ exports.updateUserStatus = async (req, res) => {
 // DELETE /api/users/:id — Admin only
 exports.deleteUser = async (req, res) => {
   try {
+    // Gather all Cloudinary assets owned by this user
+    const [user, submissions] = await Promise.all([
+      prisma.user.findUnique({
+        where:  { id: req.params.id },
+        select: { avatarPublicId: true },
+      }),
+      // All submission files this user uploaded
+      prisma.submission.findMany({
+        where:  { studentId: req.params.id },
+        select: { filePublicId: true },
+      }),
+    ]);
+
+    // ── Delete avatar from Cloudinary ─────────────────────────────────────────
+    if (user?.avatarPublicId) {
+      await deleteCloudinaryAsset(user.avatarPublicId, "image");
+    }
+
+    // ── Delete all submission files from Cloudinary ───────────────────────────
+    await Promise.all(
+      submissions
+        .filter((s) => s.filePublicId)
+        .map((s) => deleteCloudinaryAsset(s.filePublicId, "raw"))
+    );
+
+    const totalCleaned = submissions.filter((s) => s.filePublicId).length + (user?.avatarPublicId ? 1 : 0);
+    console.log(`[users:delete] userId=${req.params.id} cleanedAssets=${totalCleaned}`);
+
+    // Prisma cascade handles: Submission, CourseStudent, ChatParticipant rows
     await prisma.user.delete({ where: { id: req.params.id } });
-    res.json({ message: "User deleted" });
+
+    res.json({ message: "User deleted", cleanedCloudinaryAssets: totalCleaned });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+

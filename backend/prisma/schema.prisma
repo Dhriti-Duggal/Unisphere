@@ -36,6 +36,7 @@ model User {
   state              String       @default("")
   location           String       @default("")
   avatarUrl          String       @default("")
+  avatarPublicId     String       @default("")
   onboardingComplete Boolean      @default(false)
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
@@ -120,13 +121,14 @@ model ChatMessage {
 }
 
 model StudyMaterial {
-  id          String   @id @default(cuid())
-  title       String
-  description String   @default("")
-  materialType String  @default("link")
-  fileUrl     String   @default("")
-  linkUrl     String   @default("")
-  createdAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  title            String
+  description      String   @default("")
+  materialType     String   @default("link")
+  fileUrl          String   @default("")
+  filePublicId     String   @default("")
+  linkUrl          String   @default("")
+  createdAt        DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   courseId    String
@@ -148,12 +150,13 @@ model CourseStudent {
 }
 
 model Assignment {
-  id          String   @id @default(cuid())
-  title       String
-  description String   @default("")
-  attachmentUrl  String   @default("")
-  attachmentName String   @default("")
-  attachmentSize Int      @default(0)
+  id                   String   @id @default(cuid())
+  title                String
+  description          String   @default("")
+  attachmentUrl        String   @default("")
+  attachmentPublicId   String   @default("")
+  attachmentName       String   @default("")
+  attachmentSize       Int      @default(0)
   dueDate     DateTime
   points      Int      @default(100)
   status      String   @default("pending")
@@ -169,9 +172,10 @@ model Assignment {
 }
 
 model Submission {
-  id          String   @id @default(cuid())
-  fileUrl     String   @default("")
-  grade       Int?
+  id              String   @id @default(cuid())
+  fileUrl         String   @default("")
+  filePublicId    String   @default("")
+  grade           Int?
   status      String   @default("submitted")
   submittedAt DateTime @default(now())
 

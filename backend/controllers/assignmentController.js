@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { deleteCloudinaryAsset } = require("../lib/cloudinaryHelper");
 
 const getYearToken = (yearValue = "") => {
   const lower = String(yearValue).toLowerCase();
@@ -57,15 +58,19 @@ exports.createAssignment = async (req, res) => {
       return res.status(403).json({ message: "Not authorized to create assignment for this course" });
     }
 
+    // multer-storage-cloudinary sets:
+    //   req.file.path     = Cloudinary secure_url
+    //   req.file.filename = Cloudinary public_id
     const assignment = await prisma.assignment.create({
       data: {
-        title: String(title).trim(),
-        description: String(description).trim(),
-        attachmentUrl: req.file ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` : "",
-        attachmentName: req.file ? req.file.originalname : "",
-        attachmentSize: req.file ? req.file.size : 0,
-        dueDate: parsedDueDate,
-        points: parsedPoints,
+        title:              String(title).trim(),
+        description:        String(description).trim(),
+        attachmentUrl:      req.file ? req.file.path     : "",
+        attachmentPublicId: req.file ? req.file.filename  : "",
+        attachmentName:     req.file ? req.file.originalname : "",
+        attachmentSize:     req.file ? (req.file.size || 0)  : 0,
+        dueDate:  parsedDueDate,
+        points:   parsedPoints,
         courseId,
         teacherId: req.user.id,
       },
@@ -228,15 +233,28 @@ exports.submitAssignment = async (req, res) => {
       return res.status(403).json({ message: "Assignment is not available for your cohort" });
     }
 
-    const uploadedFileUrl = req.file ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` : "";
+    // multer-storage-cloudinary sets:
+    //   req.file.path     = Cloudinary secure_url
+    //   req.file.filename = Cloudinary public_id
+    const uploadedFileUrl      = req.file ? req.file.path     : "";
+    const uploadedFilePublicId = req.file ? req.file.filename  : "";
     if (!uploadedFileUrl) {
       return res.status(400).json({ message: "Please upload a PDF/DOC/PPT file to submit" });
     }
 
+    // Delete the previous submission file from Cloudinary before replacing it
+    const existingSubmission = await prisma.submission.findUnique({
+      where:  { studentId_assignmentId: { studentId: req.user.id, assignmentId: req.params.id } },
+      select: { filePublicId: true },
+    });
+    if (existingSubmission?.filePublicId) {
+      await deleteCloudinaryAsset(existingSubmission.filePublicId, "raw");
+    }
+
     const submission = await prisma.submission.upsert({
-      where: { studentId_assignmentId: { studentId: req.user.id, assignmentId: req.params.id } },
-      update: { fileUrl: uploadedFileUrl, status: "submitted", submittedAt: new Date() },
-      create: { studentId: req.user.id, assignmentId: req.params.id, fileUrl: uploadedFileUrl },
+      where:  { studentId_assignmentId: { studentId: req.user.id, assignmentId: req.params.id } },
+      update: { fileUrl: uploadedFileUrl, filePublicId: uploadedFilePublicId, status: "submitted", submittedAt: new Date() },
+      create: { studentId: req.user.id, assignmentId: req.params.id, fileUrl: uploadedFileUrl, filePublicId: uploadedFilePublicId },
     });
     res.json({ message: "Assignment submitted successfully", submission });
   } catch (error) {
@@ -266,3 +284,47 @@ exports.gradeSubmission = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// DELETE /api/assignments/:id — teacher who owns it, or admin
+exports.deleteAssignment = async (req, res) => {
+  try {
+    const assignment = await prisma.assignment.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, teacherId: true, attachmentPublicId: true },
+    });
+    if (!assignment) return res.status(404).json({ message: "Assignment not found" });
+
+    // Only the owning teacher or an admin may delete
+    if (req.user.role !== "admin" && assignment.teacherId !== req.user.id) {
+      return res.status(403).json({ message: "Not authorized to delete this assignment" });
+    }
+
+    // ── 1. Delete assignment attachment from Cloudinary ──────────────────────
+    if (assignment.attachmentPublicId) {
+      await deleteCloudinaryAsset(assignment.attachmentPublicId, "raw");
+    }
+
+    // ── 2. Delete all submission files from Cloudinary before cascade delete ─
+    const submissions = await prisma.submission.findMany({
+      where:  { assignmentId: req.params.id },
+      select: { filePublicId: true },
+    });
+
+    await Promise.all(
+      submissions
+        .filter((s) => s.filePublicId)
+        .map((s) => deleteCloudinaryAsset(s.filePublicId, "raw"))
+    );
+
+    // ── 3. Delete the DB record (Submission rows cascade automatically) ───────
+    await prisma.assignment.delete({ where: { id: req.params.id } });
+
+    res.json({
+      message: "Assignment deleted",
+      deletedFiles: submissions.filter((s) => s.filePublicId).length + (assignment.attachmentPublicId ? 1 : 0),
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

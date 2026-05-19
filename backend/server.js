@@ -1,22 +1,33 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const cors = require("cors");
 const path = require("path");
 const http = require("http");
+const { Server } = require("socket.io");
 require("dotenv").config();
 
+const validateEnv = require("./config/validateEnv");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const courseRoutes = require("./routes/courseRoutes");
 const assignmentRoutes = require("./routes/assignmentRoutes");
 const liveClassRoutes = require("./routes/liveClassRoutes");
 const chatRoutes = require("./routes/chatRoutes");
-const { Server } = require("socket.io");
+const uploadRoutes = require("./routes/uploadRoutes");
 const { setupChatSocket } = require("./socket/chatSocket");
+const { globalErrorHandler, registerProcessHandlers } = require("./middleware/errorMiddleware");
+const uploadController = require("./controllers/uploadController"); // Added missing import
+
+// Validate environment variables
+validateEnv(); // exits process with a clear message if any required variable is missing
+
+// ── Process-level safety nets (unhandledRejection / uncaughtException) ────────
+registerProcessHandlers();
 
 const app = express();
 const httpServer = http.createServer(app);
 
-// ── CORS ──────────────────────────────────────────────────────────────────────
+// ── CORS Configuration ────────────────────────────────────────────────────────
 const corsOptions = {
   origin: "*",
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -26,9 +37,18 @@ const corsOptions = {
 
 app.options(/.*/, cors(corsOptions));
 app.use(cors(corsOptions));
+
+// ── Body Parsers ──────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// ── Rate Limiting for Uploads ─────────────────────────────────────────────────
+const uploadRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  keyGenerator: rateLimit.ipKeyGenerator, // Use the helper for IPv6 safety
+  message: "Too many upload requests from this IP, please try again later.",
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
@@ -37,22 +57,23 @@ app.use("/api/courses", courseRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/live-classes", liveClassRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/upload", uploadRoutes);
 
-// Health check
-app.get("/api/health", (req, res) =>
+// Direct upload route with rate limiting
+app.post("/upload", uploadRateLimiter, uploadController.uploadFile);
+
+// Health check route
+app.get("/api/health", (_req, res) =>
   res.json({ status: "ok", db: "Neon PostgreSQL", timestamp: new Date().toISOString() })
 );
 
-// 404 fallback
-app.use((req, res) => res.status(404).json({ message: "Route not found" }));
+// 404 fallback for undefined routes
+app.use((_req, res) => res.status(404).json({ success: false, message: "Route not found" }));
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: err.message || "Internal server error" });
-});
+// ── Global Error Handler ──────────────────────────────────────────────────────
+app.use(globalErrorHandler);
 
-const PORT = process.env.PORT || 5001;
+// ── Socket.io Configuration ───────────────────────────────────────────────────
 const io = new Server(httpServer, {
   cors: {
     origin: "*",
@@ -62,4 +83,8 @@ const io = new Server(httpServer, {
 });
 setupChatSocket(io);
 
-httpServer.listen(PORT, () => console.log(`🚀 UniSphere backend running on port ${PORT} → Neon PostgreSQL`));
+// ── Start the Server ──────────────────────────────────────────────────────────
+const PORT = process.env.PORT || 5001;
+httpServer.listen(PORT, () =>
+  console.log(`🚀 UniSphere backend running on port ${PORT} → Neon PostgreSQL`)
+);

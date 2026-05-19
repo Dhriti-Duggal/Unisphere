@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { deleteCloudinaryAsset } = require("../lib/cloudinaryHelper");
 
 const GRADIENTS = [
   "from-blue-600 to-cyan-600",
@@ -228,7 +229,11 @@ exports.addCourseMaterial = async (req, res) => {
       return res.status(403).json({ message: "Not authorized to add material to this course" });
     }
 
-    const uploadedFileUrl = req.file ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}` : "";
+    // multer-storage-cloudinary sets:
+    //   req.file.path     = Cloudinary secure_url
+    //   req.file.filename = Cloudinary public_id
+    const uploadedFileUrl      = req.file ? req.file.path     : "";
+    const uploadedFilePublicId = req.file ? req.file.filename  : "";
     const safeLink = String(linkUrl || "").trim();
     const safeDescription = String(description || "").trim();
     const normalizedType = String(materialType || "").trim().toLowerCase();
@@ -240,13 +245,14 @@ exports.addCourseMaterial = async (req, res) => {
 
     const material = await prisma.studyMaterial.create({
       data: {
-        title: String(title).trim(),
-        description: safeDescription,
-        materialType: resolvedMaterialType,
-        fileUrl: uploadedFileUrl,
-        linkUrl: uploadedFileUrl ? "" : safeLink,
-        courseId: req.params.id,
-        uploadedById: req.user.id,
+        title:           String(title).trim(),
+        description:     safeDescription,
+        materialType:    resolvedMaterialType,
+        fileUrl:         uploadedFileUrl,
+        filePublicId:    uploadedFilePublicId,
+        linkUrl:         uploadedFileUrl ? "" : safeLink,
+        courseId:        req.params.id,
+        uploadedById:    req.user.id,
       },
       include: {
         uploadedBy: { select: { id: true, name: true, email: true } },
@@ -316,9 +322,60 @@ exports.getAllCourses = async (req, res) => {
 // DELETE /api/courses/:id
 exports.deleteCourse = async (req, res) => {
   try {
+    // Fetch the course + all nested public_ids we need to clean before deletion
+    const [materials, assignments] = await Promise.all([
+      // ── Stage 1: Study material files ──────────────────────────────────────
+      prisma.studyMaterial.findMany({
+        where:  { courseId: req.params.id },
+        select: { filePublicId: true, materialType: true },
+      }),
+      // ── Stage 2: Assignment attachments ────────────────────────────────────
+      prisma.assignment.findMany({
+        where:  { courseId: req.params.id },
+        select: {
+          id: true,
+          attachmentPublicId: true,
+          // ── Stage 3: All submission files per assignment ──────────────────
+          submissions: { select: { filePublicId: true } },
+        },
+      }),
+    ]);
+
+    // Build the full delete queue
+    const deleteQueue = [];
+
+    // Study material files (image / raw / video)
+    materials.forEach((m) => {
+      if (m.filePublicId) {
+        const rt = m.materialType === "video" ? "video" : "raw";
+        deleteQueue.push(deleteCloudinaryAsset(m.filePublicId, rt));
+      }
+    });
+
+    // Assignment attachments (raw) + all submissions (raw)
+    assignments.forEach((a) => {
+      if (a.attachmentPublicId) {
+        deleteQueue.push(deleteCloudinaryAsset(a.attachmentPublicId, "raw"));
+      }
+      a.submissions.forEach((s) => {
+        if (s.filePublicId) {
+          deleteQueue.push(deleteCloudinaryAsset(s.filePublicId, "raw"));
+        }
+      });
+    });
+
+    // Run all Cloudinary deletions in parallel (errors are swallowed per-asset)
+    await Promise.all(deleteQueue);
+
+    const totalCleaned = deleteQueue.length;
+    console.log(`[courses:delete] courseId=${req.params.id} cleanedAssets=${totalCleaned}`);
+
+    // Prisma cascade handles: CourseStudent, Assignment, Submission, StudyMaterial, LiveClass
     await prisma.course.delete({ where: { id: req.params.id } });
-    res.json({ message: "Course deleted" });
+
+    res.json({ message: "Course deleted", cleanedCloudinaryAssets: totalCleaned });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
+
