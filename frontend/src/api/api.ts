@@ -1,5 +1,5 @@
-const DEFAULT_API_URL = "http://localhost:5001/api";
-const DEFAULT_SOCKET_URL = "http://localhost:5001";
+const DEFAULT_API_URL = import.meta.env.DEV ? "/api" : "https://unisphere-9jrb.onrender.com/api";
+const DEFAULT_SOCKET_URL = import.meta.env.DEV ? "/" : "https://unisphere-9jrb.onrender.com";
 
 export const BASE_URL = import.meta.env.VITE_API_URL || DEFAULT_API_URL;
 export const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || DEFAULT_SOCKET_URL;
