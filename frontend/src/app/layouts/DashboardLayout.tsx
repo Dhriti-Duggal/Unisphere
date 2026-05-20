@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router';
 import { ChevronRight } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { Sidebar } from '../components/Sidebar';
-import { AIAssistant } from '../components/AIAssistant';
+import { BotpressChat } from '../components/BotpressChat';
 
 export function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -51,7 +51,7 @@ export function DashboardLayout() {
           </div>
         </main>
       </div>
-      <AIAssistant />
+      <BotpressChat />
     </div>
   );
 }

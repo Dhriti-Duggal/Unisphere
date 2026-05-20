@@ -14,6 +14,7 @@ const assignmentRoutes = require("./routes/assignmentRoutes");
 const liveClassRoutes = require("./routes/liveClassRoutes");
 const chatRoutes = require("./routes/chatRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
+const botRoutes = require("./routes/botRoutes");
 const { setupChatSocket } = require("./socket/chatSocket");
 const { globalErrorHandler, registerProcessHandlers } = require("./middleware/errorMiddleware");
 
@@ -51,6 +52,7 @@ app.use("/api/assignments", assignmentRoutes);
 app.use("/api/live-classes", liveClassRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/upload", uploadRoutes);
+app.use("/api/bot", botRoutes);
 
 
 // Health check route
