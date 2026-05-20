@@ -19,16 +19,7 @@ const rateLimit = require("express-rate-limit");
 const { protect } = require("../middleware/authMiddleware");
 const { generateSignature, deleteAsset } = require("../controllers/uploadController");
 
-const rateLimit = require("express-rate-limit");
-router.post("/upload", uploadRateLimiter, uploadController.uploadFile);
 
-// Use the ipKeyGenerator helper for proper IPv6 handling
-const uploadRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  keyGenerator: rateLimit.ipKeyGenerator, // Use the helper for IPv6 safety
-  message: "Too many upload requests from this IP, please try again later.",
-});
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
 
@@ -37,7 +28,7 @@ const uploadRateLimiter = rateLimit({
  * so that users behind the same NAT don't share a quota.
  * Falls back to IP if req.user is somehow not set.
  */
-const userKey = (req) => req.user?.id || req.ip;
+const userKey = (req) => req.user?.id || "unauthenticated";
 
 /** 10 signature requests per 15 minutes per user */
 const signRateLimit = rateLimit({

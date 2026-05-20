@@ -173,6 +173,8 @@ const avatarStorage = new CloudinaryStorage({
   params: async (_req, file) => ({
     folder:        "unisphere/avatars",
     resource_type: "image",
+    type:          "upload",
+    access_mode:   "public",
     public_id:     makePublicId(file),
   }),
 });
@@ -185,6 +187,8 @@ const generalStorage = new CloudinaryStorage({
     return {
       folder:        "unisphere/general",
       resource_type: isImage ? "image" : "raw",
+      type:          "upload",
+      access_mode:   "public",
       public_id:     makePublicId(file),
       format:        isImage ? undefined : ext.slice(1) || undefined,
     };
@@ -196,6 +200,8 @@ const videoStorage = new CloudinaryStorage({
   params: async (_req, file) => ({
     folder:        "unisphere/videos",
     resource_type: "video",
+    type:          "upload",
+    access_mode:   "public",
     public_id:     makePublicId(file),
   }),
 });
@@ -207,6 +213,8 @@ const assignmentStorage = new CloudinaryStorage({
     return {
       folder:        "unisphere/assignments",
       resource_type: "raw",
+      type:          "upload",
+      access_mode:   "public",
       public_id:     makePublicId(file),
       format:        ext.slice(1) || undefined,
     };

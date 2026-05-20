@@ -93,6 +93,8 @@ exports.generateSignature = (req, res) => {
   const paramsToSign = {
     folder:          ctx.folder,
     timestamp,
+    type:            "upload",
+    access_mode:     "public",
     // Restrict to allowed formats (Cloudinary enforces this server-side)
     ...(ctx.allowedFormats && { allowed_formats: ctx.allowedFormats.join(",") }),
   };

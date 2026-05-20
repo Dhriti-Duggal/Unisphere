@@ -16,7 +16,7 @@ const chatRoutes = require("./routes/chatRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const { setupChatSocket } = require("./socket/chatSocket");
 const { globalErrorHandler, registerProcessHandlers } = require("./middleware/errorMiddleware");
-const uploadController = require("./controllers/uploadController"); // Added missing import
+
 
 // Validate environment variables
 validateEnv(); // exits process with a clear message if any required variable is missing
@@ -42,13 +42,6 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// ── Rate Limiting for Uploads ─────────────────────────────────────────────────
-const uploadRateLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  keyGenerator: rateLimit.ipKeyGenerator, // Use the helper for IPv6 safety
-  message: "Too many upload requests from this IP, please try again later.",
-});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use("/api/auth", authRoutes);
@@ -59,8 +52,6 @@ app.use("/api/live-classes", liveClassRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/upload", uploadRoutes);
 
-// Direct upload route with rate limiting
-app.post("/upload", uploadRateLimiter, uploadController.uploadFile);
 
 // Health check route
 app.get("/api/health", (_req, res) =>
