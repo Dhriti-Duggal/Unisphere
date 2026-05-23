@@ -58,9 +58,18 @@ export function AssignmentList() {
 
   const stats = [
     { label: 'Total', value: allAssignments.length, dot: 'bg-primary' },
-    { label: 'Pending', value: allAssignments.filter(a => a.status === 'pending').length, dot: 'bg-orange-500' },
-    { label: 'In Progress', value: allAssignments.filter(a => a.status === 'in-progress').length, dot: 'bg-blue-500' },
-    { label: 'Completed', value: allAssignments.filter(a => a.status === 'graded' || a.status === 'submitted').length, dot: 'bg-green-500' },
+    { label: 'Pending', value: allAssignments.filter(a => {
+        const s = user.role === 'student' ? (a.submissions?.[0]?.status || a.status) : a.status;
+        return s === 'pending';
+      }).length, dot: 'bg-orange-500' },
+    { label: 'In Progress', value: allAssignments.filter(a => {
+        const s = user.role === 'student' ? (a.submissions?.[0]?.status || a.status) : a.status;
+        return s === 'in-progress';
+      }).length, dot: 'bg-blue-500' },
+    { label: 'Completed', value: allAssignments.filter(a => {
+        const s = user.role === 'student' ? (a.submissions?.[0]?.status || a.status) : a.status;
+        return s === 'graded' || s === 'submitted';
+      }).length, dot: 'bg-green-500' },
   ];
 
   return (

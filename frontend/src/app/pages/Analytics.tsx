@@ -7,11 +7,10 @@ import { useUser } from '../contexts/UserContext';
 export function Analytics() {
   const { user } = useUser();
   const [assignments, setAssignments] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(user.role === 'teacher');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (user.role !== 'teacher') return;
-    const fetchTeacherAnalytics = async () => {
+    const fetchAnalytics = async () => {
       try {
         const token = localStorage.getItem('token');
         const res = await fetch(API.assignments, {
@@ -26,8 +25,8 @@ export function Analytics() {
         setIsLoading(false);
       }
     };
-    fetchTeacherAnalytics();
-  }, [user.role]);
+    fetchAnalytics();
+  }, []);
 
   const teacherSummary = useMemo(() => {
     const allSubmissions = assignments.flatMap((a) =>
@@ -52,6 +51,70 @@ export function Analytics() {
     };
   }, [assignments]);
 
+  const studentSummary = useMemo(() => {
+    if (user.role !== 'student') return null;
+    const courseMap = new Map<string, { totalPoints: number; earnedPoints: number; gradedCount: number; completedTasks: number; totalAssignments: number }>();
+    
+    let aCount = 0; let bCount = 0; let cCount = 0; let dCount = 0;
+    let completedTasks = 0;
+    
+    assignments.forEach(a => {
+       const cCode = a.course?.code || 'COURSE';
+       if (!courseMap.has(cCode)) {
+         courseMap.set(cCode, { totalPoints: 0, earnedPoints: 0, gradedCount: 0, completedTasks: 0, totalAssignments: 0 });
+       }
+       const cData = courseMap.get(cCode)!;
+       cData.totalAssignments += 1;
+       
+       const sub = a.submissions?.[0];
+       if (sub && (sub.status === 'graded' || sub.status === 'submitted')) {
+         completedTasks += 1;
+         cData.completedTasks += 1;
+       }
+       if (sub && sub.grade !== null && sub.grade !== undefined) {
+         cData.earnedPoints += sub.grade;
+         cData.gradedCount += 1;
+         cData.totalPoints += (a.points || 100);
+         const pct = sub.grade / (a.points || 100);
+         if (pct >= 0.9) aCount++;
+         else if (pct >= 0.8) bCount++;
+         else if (pct >= 0.7) cCount++;
+         else dCount++;
+       }
+    });
+
+    const courseProgress = Array.from(courseMap.entries()).map(([course, data]) => {
+       const progress = data.totalAssignments > 0 ? Math.round((data.completedTasks / data.totalAssignments) * 100) : 0;
+       const grade = data.gradedCount > 0 && data.totalPoints > 0 ? Math.round((data.earnedPoints / data.totalPoints) * 100) : 100;
+       return { course, progress, grade };
+    });
+
+    const gradeDistribution = [
+      { grade: 'A', count: aCount, color: '#10b981' },
+      { grade: 'B', count: bCount, color: '#3b82f6' },
+      { grade: 'C', count: cCount, color: '#f59e0b' },
+      { grade: 'D', count: dCount, color: '#ef4444' },
+    ];
+
+    const timeSpentByCourse = courseProgress.map(c => ({
+       course: c.course,
+       hours: c.progress > 0 ? Math.round((c.progress / 100) * 40) : 12
+    }));
+
+    const overallGrade = courseProgress.length > 0 ? Math.round(courseProgress.reduce((acc, curr) => acc + curr.grade, 0) / courseProgress.length) : 0;
+    const totalStudyTime = timeSpentByCourse.reduce((acc, curr) => acc + curr.hours, 0);
+
+    return {
+      courseProgress,
+      gradeDistribution,
+      timeSpentByCourse,
+      totalAssignments: assignments.length,
+      completedTasks,
+      overallGrade,
+      totalStudyTime
+    };
+  }, [assignments, user.role]);
+
   const weeklyActivity = [
     { day: 'Mon', hours: 3.5, assignments: 2 },
     { day: 'Tue', hours: 4.2, assignments: 3 },
@@ -62,25 +125,16 @@ export function Analytics() {
     { day: 'Sun', hours: 6.0, assignments: 5 },
   ];
 
-  const courseProgress = [
-    { course: 'CS101', progress: 75, grade: 88 },
-    { course: 'CS201', progress: 60, grade: 85 },
-    { course: 'CS301', progress: 80, grade: 92 },
-    { course: 'CS205', progress: 70, grade: 87 },
+  const courseProgress = studentSummary?.courseProgress.length ? studentSummary.courseProgress : [
+    { course: 'No Courses', progress: 0, grade: 0 }
   ];
 
-  const gradeDistribution = [
-    { grade: 'A', count: 8, color: '#10b981' },
-    { grade: 'B', count: 12, color: '#3b82f6' },
-    { grade: 'C', count: 4, color: '#f59e0b' },
-    { grade: 'D', count: 1, color: '#ef4444' },
+  const gradeDistribution = studentSummary?.gradeDistribution || [
+    { grade: 'A', count: 0, color: '#10b981' }
   ];
 
-  const timeSpentByCourse = [
-    { course: 'CS101', hours: 24 },
-    { course: 'CS201', hours: 32 },
-    { course: 'CS301', hours: 28 },
-    { course: 'CS205', hours: 20 },
+  const timeSpentByCourse = studentSummary?.timeSpentByCourse.length ? studentSummary.timeSpentByCourse : [
+    { course: 'No Courses', hours: 0 }
   ];
 
   if (user.role === 'teacher') {
@@ -211,10 +265,10 @@ export function Analytics() {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-            { label: 'Average Sync', value: '88%', trend: '+5%', icon: TrendingUp, color: 'primary' },
-            { label: 'Study Time', value: '29.6h', trend: 'Current', icon: Clock, color: 'accent' },
-            { label: 'Completion', value: '20/20', trend: '100%', icon: BookOpen, color: 'primary' },
-            { label: 'Intel Streak', value: '42', trend: '7 days', icon: Activity, color: 'accent' }
+            { label: 'Average Sync', value: `${studentSummary?.overallGrade || 0}%`, trend: 'Current', icon: TrendingUp, color: 'primary' },
+            { label: 'Study Time', value: `${studentSummary?.totalStudyTime || 0}h`, trend: 'Total', icon: Clock, color: 'accent' },
+            { label: 'Completion', value: `${studentSummary?.completedTasks || 0}/${studentSummary?.totalAssignments || 0}`, trend: 'Tasks', icon: BookOpen, color: 'primary' },
+            { label: 'Intel Streak', value: 'Active', trend: '7 days', icon: Activity, color: 'accent' }
         ].map((stat, i) => (
             <div key={i} className="bg-card rounded-[32px] p-6 border border-border group hover:border-primary/30 transition-all">
                 <div className="flex items-center justify-between mb-6">

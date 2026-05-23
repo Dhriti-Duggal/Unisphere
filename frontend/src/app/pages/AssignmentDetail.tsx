@@ -472,7 +472,7 @@ export function AssignmentDetail() {
                 disabled={isSubmitting}
                 className="w-full h-12 rounded-2xl bg-primary text-white font-black text-sm shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all"
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Assignment'}
+                {isSubmitting ? 'Submitting...' : mySubmission?.fileUrl ? 'Update Submission' : 'Submit Assignment'}
               </motion.button>
             </div>
           )}

@@ -127,7 +127,10 @@ export function StudentDashboard() {
           const counts = assignmentsData.reduce((acc: Record<string, number>, assignment: any) => {
             const courseId = assignment.courseId || assignment.course?.id;
             if (!courseId) return acc;
-            acc[courseId] = (acc[courseId] || 0) + 1;
+            const status = assignment.submissions?.[0]?.status || assignment.status;
+            if (status === 'pending' || status === 'in-progress') {
+              acc[courseId] = (acc[courseId] || 0) + 1;
+            }
             return acc;
           }, {});
           setAssignmentCountByCourse(counts);
